@@ -1,4 +1,6 @@
-from pydantic import BaseSettings
+from typing import Optional
+
+from pydantic import AnyHttpUrl, BaseSettings
 
 
 class ActuatorManagementServiceSettings(BaseSettings):
@@ -8,6 +10,9 @@ class ActuatorManagementServiceSettings(BaseSettings):
 
     kafka_bootstrap_servers: str = "kafka:9092"
     kafka_topic_actuator_commands: str = "actuator-commands"
+
+    # Base URL of the external simulator (e.g. http://simulator:8080)
+    simulator_base_url: Optional[AnyHttpUrl] = None
 
     class Config:
         env_file = ".env"
