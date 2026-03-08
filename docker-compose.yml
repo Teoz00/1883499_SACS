@@ -1,0 +1,127 @@
+version: "3.9"
+
+services:
+  zookeeper:
+    image: bitnami/zookeeper:3.9
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: bitnami/kafka:3.7
+    environment:
+      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
+      - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
+      - ALLOW_PLAINTEXT_LISTENER=yes
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+
+  postgres:
+    image: postgres:16
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=rules-db
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+  simulator:
+    image: your-registry/iot-simulator:latest
+    # The simulator implementation is external; this container is only
+    # referenced here to participate in the overall platform topology.
+    ports:
+      - "8080:8080"
+
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+    ports:
+      - "8000:8000"
+    depends_on:
+      - kafka
+
+  ingestion-service:
+    build:
+      context: ./services/ingestion-service
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - SIMULATOR_BASE_URL=http://simulator:8080
+    ports:
+      - "8001:8001"
+    depends_on:
+      - kafka
+      - simulator
+
+  processing-service:
+    build:
+      context: ./services/processing-service
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+    ports:
+      - "8002:8002"
+    depends_on:
+      - kafka
+
+  actuator-rules-service:
+    build:
+      context: ./services/actuator-rules-service
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/rules-db
+    ports:
+      - "8003:8003"
+    depends_on:
+      - kafka
+      - postgres
+
+  rule-management-service:
+    build:
+      context: ./services/rule-management-service
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/rules-db
+    ports:
+      - "8004:8004"
+    depends_on:
+      - postgres
+
+  actuator-management-service:
+    build:
+      context: ./services/actuator-management-service
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+    ports:
+      - "8005:8005"
+    depends_on:
+      - kafka
+
+  realtime-service:
+    build:
+      context: ./services/realtime-service
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+    ports:
+      - "8006:8006"
+    depends_on:
+      - kafka
+
+  frontend:
+    build:
+      context: ./frontend
+    environment:
+      - VITE_API_BASE_URL=http://api-gateway:8000
+      - VITE_WS_URL=ws://realtime-service:8006/ws
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api-gateway
+      - realtime-service
+
