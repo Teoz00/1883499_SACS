@@ -34,7 +34,7 @@ frontend, and infrastructure.
 - `infrastructure/`
   - `kafka/` – Kafka topic documentation.
   - `postgres/` – initial schema for `rules` table.
-- `docker-compose.yml` – orchestrates Kafka, Zookeeper, Postgres, all services, the simulator container, and the frontend.
+- `docker-compose.yml` – orchestrates Kafka, Zookeeper, Postgres, all services, the IoT simulator (`iot-simulator`), and the frontend.
 
 ### Microservice Structure
 
@@ -77,7 +77,13 @@ The platform uses the following Kafka topics (auto-created by Kafka):
 
 ### Running with Docker Compose
 
-From the repository root:
+The platform starts with a single command, but the **IoT simulator image must be loaded once** before the first run (it is provided by the professor as a tar file). Place `mars-iot-simulator-oci.tar` in the project root, in `infrastructure/simulator/`, or any directory, then run:
+
+```bash
+docker load -i mars-iot-simulator-oci.tar
+```
+
+Then, from the repository root:
 
 ```bash
 docker compose up
@@ -88,8 +94,8 @@ This will start:
 - Zookeeper
 - Kafka
 - PostgreSQL
-- All backend microservices
-- The external simulator container (referenced by image)
+- **iot-simulator** – external IoT simulator (image: `mars-iot-simulator:multiarch_v1`), reachable by other services at `http://iot-simulator:8080`
+- All backend microservices (ingestion, processing, actuator-rules, rule-management, actuator-management, realtime, api-gateway)
 - The React + Vite frontend
 
 Environment variables:

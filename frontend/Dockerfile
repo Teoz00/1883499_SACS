@@ -2,8 +2,8 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-COPY package.json ./
-COPY package-lock.json ./ || true
+# Copy package files (package-lock.json included if present)
+COPY package*.json ./
 
 RUN npm install
 

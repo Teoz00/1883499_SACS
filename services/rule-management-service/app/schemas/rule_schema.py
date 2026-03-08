@@ -7,6 +7,12 @@ from pydantic import BaseModel
 
 
 class RuleBase(BaseModel):
+    """
+    Rule schema. The rule engine requires the FULL DSL in 'condition':
+    "IF <sensor> <op> <value> [unit] THEN set <actuator> to ON|OFF"
+    Example: "IF greenhouse_temperature > 28 °C THEN set cooling_fan to ON"
+    'action' can store the extracted action for display (e.g. "set cooling_fan to ON").
+    """
     name: str
     condition: str
     action: str

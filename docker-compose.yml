@@ -1,25 +1,31 @@
-version: "3.9"
+# IoT Greenhouse Platform – full stack with docker compose.
+# Before first run, load the professor's IoT simulator image (file in infrastructure/simulator/):
+#   docker load -i infrastructure/simulator/mars-iot-simulator-oci.tar
+# Then: docker compose up
 
+# Zookeeper and Kafka: Confluent Platform (Bitnami images were removed from Docker Hub)
 services:
   zookeeper:
-    image: bitnami/zookeeper:3.9
+    image: confluentinc/cp-zookeeper:7.6.0
     environment:
-      - ALLOW_ANONYMOUS_LOGIN=yes
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
     ports:
       - "2181:2181"
 
   kafka:
-    image: bitnami/kafka:3.7
-    environment:
-      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
-      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092
-      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
-      - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
-      - ALLOW_PLAINTEXT_LISTENER=yes
+    image: confluentinc/cp-kafka:7.6.0
     depends_on:
       - zookeeper
     ports:
       - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
 
   postgres:
     image: postgres:16
@@ -32,10 +38,10 @@ services:
     volumes:
       - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
 
-  simulator:
-    image: your-registry/iot-simulator:latest
-    # The simulator implementation is external; this container is only
-    # referenced here to participate in the overall platform topology.
+  iot-simulator:
+    image: mars-iot-simulator:multiarch_v1
+    # External simulator; load first: docker load -i infrastructure/simulator/mars-iot-simulator-oci.tar
+    # Other services reach it via hostname "iot-simulator" on the Docker network.
     ports:
       - "8080:8080"
 
@@ -43,23 +49,27 @@ services:
     build:
       context: ./services/api-gateway
     environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - SENSORS_SERVICE_URL=http://iot-simulator:8080
+      - ACTUATORS_SERVICE_URL=http://actuator-management-service:8005
+      - RULES_SERVICE_URL=http://rule-management-service:8004
     ports:
       - "8000:8000"
     depends_on:
-      - kafka
+      - rule-management-service
+      - actuator-management-service
+      - iot-simulator
 
   ingestion-service:
     build:
       context: ./services/ingestion-service
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      - SIMULATOR_BASE_URL=http://simulator:8080
+      - SIMULATOR_BASE_URL=http://iot-simulator:8080
     ports:
       - "8001:8001"
     depends_on:
       - kafka
-      - simulator
+      - iot-simulator
 
   processing-service:
     build:
@@ -98,10 +108,12 @@ services:
       context: ./services/actuator-management-service
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - SIMULATOR_BASE_URL=http://iot-simulator:8080
     ports:
       - "8005:8005"
     depends_on:
       - kafka
+      - iot-simulator
 
   realtime-service:
     build:
@@ -117,8 +129,8 @@ services:
     build:
       context: ./frontend
     environment:
-      - VITE_API_BASE_URL=http://api-gateway:8000
-      - VITE_WS_URL=ws://realtime-service:8006/ws
+      - VITE_API_BASE_URL=http://localhost:8000
+      - VITE_WS_URL=ws://localhost:8006/ws/events
     ports:
       - "5173:5173"
     depends_on:

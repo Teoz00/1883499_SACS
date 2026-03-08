@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 const DEFAULT_WS_URL =
-  import.meta.env.VITE_WS_URL || "ws://localhost:8006/ws";
+  import.meta.env.VITE_WS_URL || "ws://localhost:8006/ws/events";
 
 /**
  * Minimal WebSocket client placeholder used by the Dashboard
