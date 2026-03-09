@@ -24,6 +24,18 @@ const KNOWN_ACTUATORS = [
   "habitat_heater",
 ];
 
+// Default mapping from sensor to its unit and preferred actuator.
+const SENSOR_DEFAULTS = {
+  greenhouse_temperature: { unit: "°C", actuator: "cooling_fan" },
+  entrance_humidity: { unit: "% RH", actuator: "entrance_humidifier" },
+  co2_hall: { unit: "ppm", actuator: "hall_ventilation" },
+  hydroponic_ph: { unit: "pH", actuator: "habitat_heater" },
+  water_tank_level: { unit: "% full", actuator: "habitat_heater" },
+  corridor_pressure: { unit: "kPa", actuator: "hall_ventilation" },
+  air_quality_pm25: { unit: "µg/m³", actuator: "hall_ventilation" },
+  air_quality_voc: { unit: "ppm", actuator: "hall_ventilation" },
+};
+
 function buildCondition({ sensor, operator, threshold, unit, actuator, command }) {
   const trimmedUnit = (unit || "").trim();
   const unitPart = trimmedUnit ? ` ${trimmedUnit}` : "";
@@ -32,6 +44,20 @@ function buildCondition({ sensor, operator, threshold, unit, actuator, command }
 
 function buildAction({ actuator, command }) {
   return `THEN set ${actuator} to ${command}`;
+}
+
+function extractActuatorIdFromAction(action) {
+  // Expected shapes:
+  // "THEN set <actuator> to ON"
+  // or full condition: "IF ... THEN set <actuator> to ON"
+  if (typeof action !== "string") return null;
+  const lower = action.toLowerCase();
+  const marker = "then set ";
+  const idx = lower.indexOf(marker);
+  if (idx === -1) return null;
+  const after = action.slice(idx + marker.length).trim();
+  const [actuator] = after.split(/\s+/);
+  return actuator || null;
 }
 
 function Rules() {
@@ -92,7 +118,36 @@ function Rules() {
         enabled: true,
       };
       const created = await apiPost("/api/rules", payload);
-      setRules((prev) => [...prev, created]);
+
+      // Enforce that rules targeting the same actuator are mutually exclusive.
+      const createdActuator = extractActuatorIdFromAction(created.action);
+      let nextRules = [...rules, created];
+      if (createdActuator) {
+        const toDisable = nextRules.filter(
+          (r) =>
+            r.id !== created.id &&
+            extractActuatorIdFromAction(r.action) === createdActuator &&
+            r.enabled
+        );
+        if (toDisable.length > 0) {
+          const updated = await Promise.all(
+            toDisable.map((rule) =>
+              apiPut(`/api/rules/${rule.id}`, {
+                name: rule.name,
+                condition: rule.condition,
+                action: rule.action,
+                enabled: false,
+              })
+            )
+          );
+          nextRules = nextRules.map((r) => {
+            const match = updated.find((u) => u.id === r.id);
+            return match || r;
+          });
+        }
+      }
+
+      setRules(nextRules);
       setForm({
         name: "",
         sensor: "",
@@ -120,7 +175,38 @@ function Rules() {
         action: rule.action,
         enabled,
       });
-      setRules((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+      let nextRules = rules.map((r) => (r.id === updated.id ? updated : r));
+
+      // If we just ENABLED a rule, disable all other rules tied to the same actuator.
+      if (enabled) {
+        const actuator = extractActuatorIdFromAction(updated.action);
+        if (actuator) {
+          const toDisable = nextRules.filter(
+            (r) =>
+              r.id !== updated.id &&
+              extractActuatorIdFromAction(r.action) === actuator &&
+              r.enabled
+          );
+          if (toDisable.length > 0) {
+            const disabled = await Promise.all(
+              toDisable.map((r) =>
+                apiPut(`/api/rules/${r.id}`, {
+                  name: r.name,
+                  condition: r.condition,
+                  action: r.action,
+                  enabled: false,
+                })
+              )
+            );
+            nextRules = nextRules.map((r) => {
+              const match = disabled.find((d) => d.id === r.id);
+              return match || r;
+            });
+          }
+        }
+      }
+
+      setRules(nextRules);
     } catch (err) {
       console.error(err);
       setError("Failed to update rule.");
@@ -153,13 +239,7 @@ function Rules() {
           border: "1px solid #f6e05e",
         }}
       >
-        <h2 style={{ marginTop: 0, marginBottom: "0.35rem" }}>
-          Automation Rules
-        </h2>
-        <p style={{ margin: 0, fontSize: "0.8rem", color: "#4a5568" }}>
-          Define simple threshold-based rules that react to sensor values and
-          trigger actuator commands automatically.
-        </p>
+        <h2 style={{ marginTop: 0, marginBottom: 0 }}>Automation Rules</h2>
       </header>
 
       <div
@@ -233,9 +313,16 @@ function Rules() {
               <div>Sensor</div>
               <select
                 value={form.sensor}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, sensor: e.target.value }))
-                }
+                onChange={(e) => {
+                  const sensor = e.target.value;
+                  const defaults = SENSOR_DEFAULTS[sensor] || {};
+                  setForm((f) => ({
+                    ...f,
+                    sensor,
+                    unit: defaults.unit ?? f.unit,
+                    actuator: defaults.actuator ?? f.actuator,
+                  }));
+                }}
                 style={{ width: "100%" }}
               >
                 <option value="">Select sensor…</option>

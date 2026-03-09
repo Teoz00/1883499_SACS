@@ -1,5 +1,13 @@
 import React, { useMemo } from "react";
 import { useWebSocketClient } from "../services/websocket.js";
+import {
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 // Known telemetry sources and how we present them.
 const TELEMETRY_SOURCES = [
@@ -36,8 +44,7 @@ const TELEMETRY_SOURCES = [
 ];
 
 function Telemetry() {
-  const { status: wsStatus, sensors: wsSensors, history, lastUpdated } =
-    useWebSocketClient();
+  const { sensors: wsSensors, history, lastUpdated } = useWebSocketClient();
 
   const latestById = useMemo(() => ({ ...wsSensors }), [wsSensors]);
 
@@ -52,12 +59,7 @@ function Telemetry() {
           border: "1px solid #bee3f8",
         }}
       >
-        <h2 style={{ marginTop: 0, marginBottom: "0.35rem" }}>Telemetry</h2>
-        <p style={{ margin: 0, fontSize: "0.8rem", color: "#4a5568" }}>
-          Power, thermal, and airlock telemetry streamed from the simulator.
-          Values are updated in real time using the same event pipeline as
-          sensors.
-        </p>
+        <h2 style={{ marginTop: 0, marginBottom: 0 }}>Telemetry</h2>
       </header>
 
       <div
@@ -75,9 +77,6 @@ function Telemetry() {
           <strong>Last Update:</strong>{" "}
           {lastUpdated ? new Date(lastUpdated).toLocaleString() : "–"}
         </div>
-        <div>
-          <strong>WebSocket:</strong> {wsStatus}
-        </div>
       </div>
 
       <section aria-label="Current telemetry values">
@@ -93,7 +92,7 @@ function Telemetry() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
             gap: "0.75rem",
           }}
         >
@@ -101,6 +100,14 @@ function Telemetry() {
             const evt = latestById[meta.id];
             const value =
               evt && typeof evt.value === "number" ? evt.value : undefined;
+            const series = (history[meta.id] || []).filter(
+              (e) => typeof e.value === "number"
+            );
+            const chartData = series.map((e, idx) => ({
+              index: idx,
+              value: e.value,
+              timestamp: e.timestamp,
+            }));
 
             return (
               <article
@@ -161,6 +168,49 @@ function Telemetry() {
                     {meta.unitLabel}
                   </span>
                 </p>
+                {chartData.length > 1 ? (
+                  <div style={{ width: "100%", height: 120, marginTop: "0.5rem" }}>
+                    <ResponsiveContainer>
+                      <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
+                        <XAxis
+                          dataKey="index"
+                          tick={false}
+                          axisLine={false}
+                          label={{ value: "", position: "insideBottom" }}
+                        />
+                        <YAxis
+                          tick={{ fontSize: 10 }}
+                          width={30}
+                          stroke="#a0aec0"
+                        />
+                        <Tooltip
+                          formatter={(val) => [
+                            `${val.toFixed(2)} ${meta.unitLabel}`,
+                            "Value",
+                          ]}
+                          labelFormatter={(index) => {
+                            const item = chartData[index];
+                            return item?.timestamp
+                              ? new Date(item.timestamp).toLocaleString()
+                              : "";
+                          }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="value"
+                          stroke="#38a169"
+                          strokeWidth={2}
+                          dot={false}
+                          isAnimationActive={false}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <p style={{ margin: "0.5rem 0 0", fontSize: "0.75rem" }}>
+                    Waiting for enough data points to draw a trend.
+                  </p>
+                )}
               </article>
             );
           })}

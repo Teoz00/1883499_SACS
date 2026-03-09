@@ -1,5 +1,5 @@
 import logging
-from typing import Literal
+from typing import Dict, Literal
 
 import httpx
 
@@ -49,4 +49,65 @@ async def send_actuator_command(actuator_id: str, command: CommandLiteral) -> No
         actuator_id,
         command,
     )
+
+
+async def fetch_actuator_states() -> Dict[str, str]:
+    """
+    Fetch current actuator states from the simulator.
+
+    Returns a mapping {actuator_id: "ON" | "OFF"}.
+    The function is defensive and tries to handle a few reasonable
+    response shapes from the simulator.
+    """
+    states: Dict[str, str] = {}
+
+    if not settings.simulator_base_url:
+        logger.warning(
+            "SIMULATOR_BASE_URL is not configured; cannot fetch actuator states."
+        )
+        return states
+
+    base = str(settings.simulator_base_url).rstrip("/")
+    url = f"{base}/api/actuators"
+
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+            data = response.json()
+    except httpx.HTTPError as exc:
+        logger.error("Failed to fetch actuator states from simulator at %s: %s", url, exc)
+        return states
+
+    # Accept a few possible shapes:
+    # 1) {"actuators": [{"id": "...", "state": "ON"}]}
+    # 2) [{"id": "...", "state": "ON"}]
+    # 3) {"<id>": {"state": "ON"}}
+    try:
+        if isinstance(data, dict):
+            items = data.get("actuators", data)
+        else:
+            items = data
+
+        if isinstance(items, dict):
+            for actuator_id, payload in items.items():
+                if isinstance(payload, dict):
+                    state = str(payload.get("state", "")).upper()
+                    if state in ("ON", "OFF"):
+                        states[str(actuator_id)] = state
+        elif isinstance(items, list):
+            for entry in items:
+                if not isinstance(entry, dict):
+                    continue
+                actuator_id = entry.get("id") or entry.get("actuator_id")
+                state = entry.get("state")
+                if isinstance(actuator_id, str) and isinstance(state, str):
+                    upper_state = state.upper()
+                    if upper_state in ("ON", "OFF"):
+                        states[actuator_id] = upper_state
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.error("Error while parsing actuator states from simulator: %s", exc)
+
+    return states
+
 

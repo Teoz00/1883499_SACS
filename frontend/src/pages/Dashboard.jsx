@@ -1,5 +1,13 @@
 import React, { useMemo } from "react";
 import { useWebSocketClient } from "../services/websocket.js";
+import {
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 // Known sensors exposed by the simulator and their presentation metadata.
 const KNOWN_SENSORS = [
@@ -72,12 +80,8 @@ function formatTimestamp(ts) {
 }
 
 function Dashboard() {
-  const {
-    status: wsStatus,
-    sensors: wsSensors,
-    history,
-    lastUpdated: wsLastUpdated,
-  } = useWebSocketClient();
+  const { sensors: wsSensors, history, lastUpdated: wsLastUpdated } =
+    useWebSocketClient();
   const lastUpdate = wsLastUpdated;
 
   // Build a map of latest readings by sensor id from the WebSocket stream.
@@ -89,8 +93,7 @@ function Dashboard() {
     if (evt.status && typeof evt.status === "string") {
       return evt.status.toLowerCase() === "warning";
     }
-    const value = typeof evt.value === "number" ? evt.value : undefined;
-    return value !== undefined && value > meta.threshold;
+    return false;
   });
 
   return (
@@ -104,13 +107,7 @@ function Dashboard() {
           border: "1px solid #bee3f8",
         }}
       >
-        <h2 style={{ marginTop: 0, marginBottom: "0.35rem" }}>
-          Sensor Dashboard
-        </h2>
-        <p style={{ margin: 0, fontSize: "0.8rem", color: "#4a5568" }}>
-          Live sensor values from the greenhouse simulator. Data is streamed in
-          real time and periodically refreshed from the simulator.
-        </p>
+        <h2 style={{ marginTop: 0, marginBottom: 0 }}>Sensor Dashboard</h2>
       </header>
 
       <div
@@ -126,9 +123,6 @@ function Dashboard() {
       >
         <div>
           <strong>Last Update:</strong> {formatTimestamp(lastUpdate)}
-        </div>
-        <div>
-          <strong>WebSocket:</strong> {wsStatus}
         </div>
       </div>
 
@@ -188,7 +182,10 @@ function Dashboard() {
               evt && typeof evt.value === "number"
                 ? evt.value
                 : undefined;
-            const isAlert = value !== undefined && value > meta.threshold;
+            const isAlert =
+              evt &&
+              typeof evt.status === "string" &&
+              evt.status.toLowerCase() === "warning";
 
             return (
               <article
@@ -271,15 +268,19 @@ function Dashboard() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
             gap: "0.75rem",
           }}
         >
           {KNOWN_SENSORS.map((meta) => {
-            const series = history[meta.id] || [];
-            const values = series
-              .map((e) => (typeof e.value === "number" ? e.value : null))
-              .filter((v) => v !== null);
+            const series = (history[meta.id] || []).filter(
+              (e) => typeof e.value === "number"
+            );
+            const chartData = series.map((e, idx) => ({
+              index: idx,
+              value: e.value,
+              timestamp: e.timestamp,
+            }));
 
             return (
               <div
@@ -302,38 +303,54 @@ function Dashboard() {
                   }}
                 >
                   <span style={{ fontWeight: 600 }}>{meta.label}</span>
-                  {values.length > 0 && (
+                  {chartData.length > 0 && (
                     <span>
-                      Latest: {values[values.length - 1]?.toFixed(1)}{" "}
+                      Latest:{" "}
+                      {chartData[chartData.length - 1].value.toFixed(1)}{" "}
                       {meta.unitLabel}
                     </span>
                   )}
                 </div>
-                <svg
-                  viewBox="0 0 100 40"
-                  role="img"
-                  aria-label={`Trend for ${meta.label}`}
-                  style={{ width: "100%", height: "70px" }}
-                >
-                  {values.length > 1 && (() => {
-                    const min = Math.min(...values);
-                    const max = Math.max(...values);
-                    const span = max - min || 1;
-                    const points = values.map((v, idx) => {
-                      const x = (idx / Math.max(values.length - 1, 1)) * 100;
-                      const y = 35 - ((v - min) / span) * 30;
-                      return `${x},${y}`;
-                    });
-                    return (
-                      <polyline
-                        fill="none"
-                        stroke="#3182ce"
-                        strokeWidth="1.5"
-                        points={points.join(" ")}
-                      />
-                    );
-                  })()}
-                </svg>
+                {chartData.length > 1 ? (
+                  <div style={{ width: "100%", height: 120 }}>
+                    <ResponsiveContainer>
+                      <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
+                        <XAxis
+                          dataKey="index"
+                          tick={false}
+                          axisLine={false}
+                          label={{ value: "", position: "insideBottom" }}
+                        />
+                        <YAxis
+                          tick={{ fontSize: 10 }}
+                          width={30}
+                          stroke="#a0aec0"
+                        />
+                        <Tooltip
+                          formatter={(value) => [`${value.toFixed(2)} ${meta.unitLabel}`, "Value"]}
+                          labelFormatter={(index) => {
+                            const item = chartData[index];
+                            return item?.timestamp
+                              ? new Date(item.timestamp).toLocaleString()
+                              : "";
+                          }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="value"
+                          stroke="#3182ce"
+                          strokeWidth={2}
+                          dot={false}
+                          isAnimationActive={false}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <p style={{ margin: "0.25rem 0 0" }}>
+                    Waiting for enough data points to draw a trend.
+                  </p>
+                )}
               </div>
             );
           })}

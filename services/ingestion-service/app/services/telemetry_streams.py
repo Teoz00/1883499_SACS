@@ -24,8 +24,8 @@ TELEMETRY_TOPICS: List[str] = [
 
 
 def _power_payload_to_events(topic: str, payload: Dict[str, Any]) -> Iterable[RawSensorEvent]:
-    subsystem = payload.get("subsystem") or topic.split("/")[-1]
-    sensor_id = f"{subsystem}_power"
+    simple_id = topic.split("/")[-1]
+    sensor_id = simple_id
     event_time = payload.get("event_time")
     power_kw = payload.get("power_kw")
     if power_kw is None:
@@ -41,30 +41,30 @@ def _power_payload_to_events(topic: str, payload: Dict[str, Any]) -> Iterable[Ra
     ]
 
 
-def _environment_payload_to_events(payload: Dict[str, Any]) -> Iterable[RawSensorEvent]:
+def _environment_payload_to_events(topic: str, payload: Dict[str, Any]) -> Iterable[RawSensorEvent]:
     measurements = payload.get("measurements") or []
-    source = payload.get("source") or {}
-    system = source.get("system") or "env"
-    segment = source.get("segment") or "global"
+    simple_id = topic.split("/")[-1]
     event_time = payload.get("event_time")
     status = str(payload.get("status") or "ok")
 
     events: List[RawSensorEvent] = []
+    # For the purposes of the UI, we treat each telemetry topic as a single
+    # logical stream. Take the first measurement as the representative value.
     for m in measurements:
         metric = m.get("metric")
         value = m.get("value")
         if metric is None or value is None:
             continue
-        sensor_id = f"{system}_{segment}_{metric}"
         events.append(
             RawSensorEvent(
-                sensor_id=str(sensor_id),
+                sensor_id=str(simple_id),
                 type=str(metric),
                 value=float(value),
                 timestamp=str(event_time),
                 status=status,
             )
         )
+        break
     return events
 
 
@@ -108,7 +108,7 @@ def telemetry_payload_to_events(topic: str, payload: Dict[str, Any]) -> Iterable
     if topic.endswith("airlock"):
         return _airlock_payload_to_events(payload)
     if payload.get("measurements"):
-        return _environment_payload_to_events(payload)
+        return _environment_payload_to_events(topic, payload)
     return _power_payload_to_events(topic, payload)
 
 

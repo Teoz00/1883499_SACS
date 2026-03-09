@@ -56,15 +56,6 @@ function App() {
             >
               Habitat Monitoring System
             </h1>
-            <p
-              style={{
-                margin: "0.15rem 0 0",
-                fontSize: "0.8rem",
-                color: "#718096",
-              }}
-            >
-              Greenhouse sensors · Automation rules · Actuator control
-            </p>
           </div>
 
           <nav

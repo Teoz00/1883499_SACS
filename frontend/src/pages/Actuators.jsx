@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost, apiPut } from "../services/api.js";
 
 // Actuators provided by the simulator.
@@ -10,16 +10,57 @@ const ACTUATORS = [
 ];
 
 function Actuators() {
-  const [states, setStates] = useState(() =>
-    ACTUATORS.reduce(
-      (acc, a) => ({ ...acc, [a.id]: "OFF" }),
-      /** @type {Record<string, "ON" | "OFF">} */ ({})
-    )
+  const [states, setStates] = useState(
+    /** @type {Record<string, "ON" | "OFF">} */ ({})
   );
   const [log, setLog] = useState([]);
   const [error, setError] = useState(null);
   const [pending, setPending] = useState({});
   const [info, setInfo] = useState(null);
+
+  // Periodically refresh actuator states from the backend, which in turn
+  // queries the simulator. This ensures we always show the current state,
+  // including changes caused by automation rules.
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadStates() {
+      try {
+        const data = await apiGet("/api/actuators");
+        if (cancelled || !data || !Array.isArray(data.actuators)) return;
+        const nextStates = {};
+        for (const item of data.actuators) {
+          if (!item || typeof item.id !== "string") continue;
+          const state =
+            typeof item.state === "string" && item.state.toUpperCase() === "ON"
+              ? "ON"
+              : "OFF";
+          nextStates[item.id] = state;
+        }
+        if (!cancelled) {
+          setStates(nextStates);
+        }
+      } catch (err) {
+        // Non-fatal: keep previous states, but surface an error once.
+        console.error("Failed to load actuator states", err);
+        if (!cancelled) {
+          setError(
+            "Failed to refresh actuator states from the simulator. Last known values are shown."
+          );
+        }
+      }
+    }
+
+    // Initial load.
+    loadStates();
+    // Poll periodically to keep in sync with automation.
+    const interval = setInterval(loadStates, 5000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
 
   const sortedLog = useMemo(
     () => [...log].sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1)),
@@ -32,6 +73,8 @@ function Actuators() {
     setPending((prev) => ({ ...prev, [actuatorId]: true }));
     try {
       await apiPost(`/api/actuators/${actuatorId}/${command.toLowerCase()}`);
+      // Optimistically update local state; the periodic poll will reconcile
+      // with the actual simulator state shortly after.
       setStates((prev) => ({ ...prev, [actuatorId]: command }));
       setLog((prev) => [
         ...prev,
@@ -93,11 +136,7 @@ function Actuators() {
           border: "1px solid #81e6d9",
         }}
       >
-        <h2 style={{ marginTop: 0, marginBottom: "0.35rem" }}>Actuators</h2>
-        <p style={{ margin: 0, fontSize: "0.8rem", color: "#4a5568" }}>
-          View the current state of each actuator and override automation by
-          sending manual ON/OFF commands to the simulator.
-        </p>
+        <h2 style={{ marginTop: 0, marginBottom: 0 }}>Actuators</h2>
       </header>
 
       {error && (

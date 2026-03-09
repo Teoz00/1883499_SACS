@@ -1,9 +1,36 @@
 from fastapi import APIRouter, status
 
 from app.services.command_executor import execute_actuator_command
+from app.services.simulator_client import fetch_actuator_states
 
 
 router = APIRouter(prefix="/actuators", tags=["actuators"])
+
+
+@router.get(
+    "/",
+    status_code=status.HTTP_200_OK,
+    summary="List current actuator states",
+)
+async def list_actuators() -> dict:
+    """
+    Return the current state of all actuators as reported by the simulator.
+
+    Shape:
+    {
+      "actuators": [
+        {"id": "cooling_fan", "state": "ON"},
+        ...
+      ]
+    }
+    """
+    states = await fetch_actuator_states()
+    return {
+      "actuators": [
+        {"id": actuator_id, "state": state}
+        for actuator_id, state in sorted(states.items())
+      ]
+    }
 
 
 @router.post(
