@@ -4,7 +4,10 @@ import logging
 from fastapi import FastAPI, WebSocket
 
 from app.routes.health import router as health_router
-from app.services.kafka_listener import NormalizedEventsListener
+from app.services.kafka_listener import (
+    ActuatorEventsListener,
+    NormalizedEventsListener,
+)
 from app.services.websocket_manager import WebSocketManager
 
 
@@ -13,6 +16,8 @@ logger = logging.getLogger(__name__)
 ws_manager = WebSocketManager()
 listener: NormalizedEventsListener | None = None
 listener_task: asyncio.Task | None = None
+actuator_listener: ActuatorEventsListener | None = None
+actuator_listener_task: asyncio.Task | None = None
 stop_event: asyncio.Event | None = None
 
 
@@ -46,7 +51,7 @@ def create_app() -> FastAPI:
 
     @app.on_event("startup")
     async def on_startup() -> None:
-        global listener, listener_task, stop_event
+        global listener, listener_task, actuator_listener, actuator_listener_task, stop_event
 
         logger.info("Starting realtime-service components.")
 
@@ -61,9 +66,17 @@ def create_app() -> FastAPI:
             name="normalized-events-listener",
         )
 
+        actuator_listener = ActuatorEventsListener(ws_manager=ws_manager, loop=loop)
+        await actuator_listener.start()
+
+        actuator_listener_task = loop.create_task(
+            actuator_listener.run(stop_event=stop_event),
+            name="actuator-events-listener",
+        )
+
     @app.on_event("shutdown")
     async def on_shutdown() -> None:
-        global listener, listener_task, stop_event
+        global listener, listener_task, actuator_listener, actuator_listener_task, stop_event
 
         logger.info("Shutting down realtime-service components.")
 
@@ -78,9 +91,21 @@ def create_app() -> FastAPI:
                 logger.info("Listener task cancelled successfully.")
             listener_task = None
 
+        if actuator_listener_task is not None:
+            actuator_listener_task.cancel()
+            try:
+                await actuator_listener_task
+            except asyncio.CancelledError:
+                logger.info("Actuator listener task cancelled successfully.")
+            actuator_listener_task = None
+
         if listener is not None:
             await listener.stop()
             listener = None
+
+        if actuator_listener is not None:
+            await actuator_listener.stop()
+            actuator_listener = None
 
     return app
 

@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { useWebSocketClient } from "../services/websocket.js";
+import { useWebSocket } from "../WebSocketContext.jsx";
 import {
   Line,
   LineChart,
@@ -73,7 +73,7 @@ function formatTimestamp(ts) {
 
 function Dashboard() {
   const { sensors: wsSensors, history, lastUpdated: wsLastUpdated } =
-    useWebSocketClient();
+    useWebSocket();
   const lastUpdate = wsLastUpdated;
 
   // Build a map of latest readings by sensor id from the WebSocket stream.

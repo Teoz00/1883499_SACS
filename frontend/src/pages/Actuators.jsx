@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost, apiPut } from "../services/api.js";
-import { useWebSocketClient } from "../services/websocket.js";
+import { useWebSocket } from "../WebSocketContext.jsx";
 
 // Actuators provided by the simulator.
 const ACTUATORS = [
@@ -19,8 +19,8 @@ function Actuators() {
   const [pending, setPending] = useState({});
   const [info, setInfo] = useState(null);
 
-  // Use WebSocket for real-time actuator state updates
-  const { status: wsStatus, actuatorStates, lastUpdated } = useWebSocketClient();
+  // Use shared WebSocket connection for real-time actuator state updates
+  const { actuatorStates } = useWebSocket();
 
   // Merge WebSocket states with local state
   const mergedStates = { ...states, ...actuatorStates };

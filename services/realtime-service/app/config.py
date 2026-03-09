@@ -9,6 +9,7 @@ class RealtimeServiceSettings(BaseSettings):
 
     kafka_bootstrap_servers: str = "kafka:9092"
     kafka_topic_normalized_events: str = "normalized-events"
+    kafka_topic_actuator_events: str = "actuator-events"
 
 
 settings = RealtimeServiceSettings()

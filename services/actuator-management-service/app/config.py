@@ -12,6 +12,7 @@ class ActuatorManagementServiceSettings(BaseSettings):
 
     kafka_bootstrap_servers: str = "kafka:9092"
     kafka_topic_actuator_commands: str = "actuator-commands"
+    kafka_topic_actuator_events: str = "actuator-events"
 
     # Base URL of the external simulator (e.g. http://iot-simulator:8080)
     simulator_base_url: Optional[AnyHttpUrl] = None
