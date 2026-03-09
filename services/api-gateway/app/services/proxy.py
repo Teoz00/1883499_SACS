@@ -58,12 +58,13 @@ async def proxy_request(
     """
     query = request.url.query
     url = _build_backend_url(backend_base_url, path, query)
+    logger.info("Proxying %s %s to %s", request.method, path, url)
     headers = _forward_headers(request.headers)
     timeout = httpx.Timeout(settings.proxy_timeout_seconds)
     body = await _read_body(request)
 
     try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
             response = await client.request(
                 method=request.method,
                 url=url,

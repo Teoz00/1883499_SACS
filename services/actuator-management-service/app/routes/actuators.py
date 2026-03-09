@@ -34,6 +34,24 @@ async def list_actuators() -> dict:
 
 
 @router.post(
+    "/{actuator_id}",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Control actuator state",
+)
+async def control_actuator(actuator_id: str, payload: dict) -> dict:
+    """
+    
+    Expected payload: {"state": "ON" | "OFF"}
+    """
+    state = payload.get("state", "").upper()
+    if state not in ("ON", "OFF"):
+        return {"error": "Invalid state. Must be 'ON' or 'OFF'"}
+    
+    await execute_actuator_command(actuator_id, state)
+    return {"actuator_id": actuator_id, "state": state}
+
+
+@router.post(
     "/{actuator_id}/on",
     status_code=status.HTTP_202_ACCEPTED,
     summary="Turn actuator ON manually",

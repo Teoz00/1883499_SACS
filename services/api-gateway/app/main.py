@@ -8,10 +8,10 @@ from app.routes.health import router as health_router
 def create_app() -> FastAPI:
     app = FastAPI(title="API Gateway")
 
-    # Allow browser apps (Vite dev server, etc.) to call the gateway.
+    # Allow all origins for local demo development
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:5173"],
+        allow_origins=["*"],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

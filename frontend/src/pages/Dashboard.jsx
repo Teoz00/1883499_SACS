@@ -16,56 +16,48 @@ const KNOWN_SENSORS = [
     label: "Greenhouse Temperature",
     unitLabel: "°C",
     preferredMetric: "temperature",
-    threshold: 28,
   },
   {
     id: "entrance_humidity",
     label: "Entrance Humidity",
     unitLabel: "% RH",
     preferredMetric: "humidity",
-    threshold: 70,
   },
   {
     id: "co2_hall",
     label: "CO₂ – Hall",
     unitLabel: "ppm",
     preferredMetric: "co2",
-    threshold: 1000,
   },
   {
     id: "hydroponic_ph",
     label: "Hydroponic pH",
     unitLabel: "pH",
     preferredMetric: "ph",
-    threshold: 7.5,
   },
   {
     id: "water_tank_level",
     label: "Water Tank Level",
     unitLabel: "% full",
     preferredMetric: "level_pct",
-    threshold: 20,
   },
   {
     id: "corridor_pressure",
     label: "Corridor Pressure",
     unitLabel: "kPa",
     preferredMetric: "pressure",
-    threshold: 110,
   },
   {
     id: "air_quality_pm25",
     label: "Air Quality – PM2.5",
     unitLabel: "µg/m³",
     preferredMetric: "pm25_ug_m3",
-    threshold: 35,
   },
   {
     id: "air_quality_voc",
     label: "Air Quality – VOC",
     unitLabel: "ppm",
     preferredMetric: "voc",
-    threshold: 800,
   },
 ];
 
@@ -147,7 +139,7 @@ function Dashboard() {
               return (
                 <li key={meta.id}>
                   <strong>{meta.label}</strong> threshold exceeded:{" "}
-                  {evt?.value} {meta.unitLabel} (limit {meta.threshold}{" "}
+                  {evt?.value} {meta.unitLabel}
                   {meta.unitLabel})
                 </li>
               );
@@ -185,7 +177,7 @@ function Dashboard() {
             const isAlert =
               evt &&
               typeof evt.status === "string" &&
-              evt.status.toLowerCase() === "warning";
+              (evt.status.toLowerCase() === "warning" || evt.status.toLowerCase() === "critical");
 
             return (
               <article

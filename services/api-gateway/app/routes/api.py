@@ -12,6 +12,11 @@ router = APIRouter(prefix="/api", tags=["api"])
 # HTTP methods we forward (match typical REST + actuator POSTs)
 METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"]
 
+# Debug route
+@router.get("/debug")
+async def debug_info():
+    return {"message": "API gateway is working", "routes": ["sensors", "actuators", "rules"]}
+
 
 def _path_with_prefix(prefix: str, path: str) -> str:
     if path:
@@ -27,11 +32,10 @@ async def proxy_sensors(request: Request, path: str) -> Response:
     return await proxy_request(settings.sensors_service_url, backend_path, request)
 
 
-@router.api_route("/actuators/{path:path}", methods=METHODS)
-async def proxy_actuators(request: Request, path: str) -> Response:
-    """Forward /api/actuators/** to the actuator-management-service."""
-    backend_path = _path_with_prefix("/actuators", path)
-    return await proxy_request(settings.actuators_service_url, backend_path, request)
+@router.api_route("/actuators", methods=METHODS)
+async def proxy_actuators_root(request: Request) -> Response:
+    """Forward /api/actuators to the actuator-management-service."""
+    return await proxy_request(settings.actuators_service_url, "/actuators/", request)
 
 
 @router.api_route("/rules", methods=METHODS)

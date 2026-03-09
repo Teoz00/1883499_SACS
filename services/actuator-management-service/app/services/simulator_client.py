@@ -95,6 +95,11 @@ async def fetch_actuator_states() -> Dict[str, str]:
                     state = str(payload.get("state", "")).upper()
                     if state in ("ON", "OFF"):
                         states[str(actuator_id)] = state
+                elif isinstance(payload, str):
+                    # Handle case where simulator returns {"actuators": {"id": "ON"}}
+                    state = payload.upper()
+                    if state in ("ON", "OFF"):
+                        states[str(actuator_id)] = state
         elif isinstance(items, list):
             for entry in items:
                 if not isinstance(entry, dict):
