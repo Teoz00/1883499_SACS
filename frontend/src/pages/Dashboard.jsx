@@ -138,9 +138,7 @@ function Dashboard() {
               const evt = latestById[meta.id];
               return (
                 <li key={meta.id}>
-                  <strong>{meta.label}</strong> threshold exceeded:{" "}
-                  {evt?.value} {meta.unitLabel}
-                  {meta.unitLabel})
+                  <strong>{meta.label}</strong>: {evt?.value} {meta.unitLabel}
                 </li>
               );
             })}

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { apiGet, apiPost, apiPut } from "../services/api.js";
+import { useWebSocketClient } from "../services/websocket.js";
 
 // Actuators provided by the simulator.
 const ACTUATORS = [
@@ -18,9 +19,13 @@ function Actuators() {
   const [pending, setPending] = useState({});
   const [info, setInfo] = useState(null);
 
-  // Periodically refresh actuator states from the backend, which in turn
-  // queries the simulator. This ensures we always show the current state,
-  // including changes caused by automation rules.
+  // Use WebSocket for real-time actuator state updates
+  const { status: wsStatus, actuatorStates, lastUpdated } = useWebSocketClient();
+
+  // Merge WebSocket states with local state
+  const mergedStates = { ...states, ...actuatorStates };
+
+  // Initial load only (WebSocket handles real-time updates)
   useEffect(() => {
     let cancelled = false;
 
@@ -51,15 +56,8 @@ function Actuators() {
       }
     }
 
-    // Initial load.
+    // Load initial states only
     loadStates();
-    // Poll periodically to keep in sync with automation.
-    const interval = setInterval(loadStates, 5000);
-
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
   }, []);
 
   const sortedLog = useMemo(
@@ -73,8 +71,8 @@ function Actuators() {
     setPending((prev) => ({ ...prev, [actuatorId]: true }));
     try {
       await apiPost(`/api/actuators/${actuatorId}/${command.toLowerCase()}`);
-      // Optimistically update local state; the periodic poll will reconcile
-      // with the actual simulator state shortly after.
+      // Optimistically update local state; the WebSocket will reconcile
+      // with the actual simulator state in real-time.
       setStates((prev) => ({ ...prev, [actuatorId]: command }));
       setLog((prev) => [
         ...prev,
@@ -170,7 +168,7 @@ function Actuators() {
           }}
         >
           {ACTUATORS.map((a) => {
-            const state = states[a.id] || "OFF";
+            const state = mergedStates[a.id] || "OFF";
             const isOn = state === "ON";
             const isBusy = pending[a.id];
 
