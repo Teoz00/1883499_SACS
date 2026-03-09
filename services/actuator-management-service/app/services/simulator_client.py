@@ -27,8 +27,10 @@ async def send_actuator_command(actuator_id: str, command: CommandLiteral) -> No
         )
         return
 
-    url = f"{settings.simulator_base_url}/actuators/{actuator_id}"
-    payload = {"command": command}
+    base = str(settings.simulator_base_url).rstrip("/")
+    # Simulator actuator API: POST /api/actuators/{id} {"state": "ON" | "OFF"}
+    url = f"{base}/api/actuators/{actuator_id}"
+    payload = {"state": command}
 
     logger.info("Sending actuator command to simulator: url=%s payload=%s", url, payload)
 

@@ -1,7 +1,9 @@
-from pydantic import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class ApiGatewaySettings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env")
+
     service_name: str = "api-gateway"
     host: str = "0.0.0.0"
     port: int = 8000
@@ -13,9 +15,6 @@ class ApiGatewaySettings(BaseSettings):
 
     # Timeout for forwarding requests to backends (seconds)
     proxy_timeout_seconds: float = 30.0
-
-    class Config:
-        env_file = ".env"
 
 
 settings = ApiGatewaySettings()

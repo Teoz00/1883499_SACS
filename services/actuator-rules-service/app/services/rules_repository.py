@@ -50,8 +50,21 @@ class RulesRepository:
             return
 
         logger.info("Creating asyncpg connection pool for rules repository.")
-        self._pool = await asyncpg.create_pool(dsn=self._database_url)
-        await self._load_rules()
+
+        delay = 1.0
+        while True:
+            try:
+                self._pool = await asyncpg.create_pool(dsn=self._database_url)
+                await self._load_rules()
+                break
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.error(
+                    "Failed to initialize rules repository (will retry in %.1fs): %s",
+                    delay,
+                    exc,
+                )
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, 30.0)
 
         loop = asyncio.get_event_loop()
         self._refresh_task = loop.create_task(self._refresh_loop(), name="rules-refresh")

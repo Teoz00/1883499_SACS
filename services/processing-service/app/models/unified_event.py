@@ -14,4 +14,5 @@ class UnifiedEvent(BaseModel):
     type: str
     value: float
     timestamp: datetime
+    status: str | None = None
 

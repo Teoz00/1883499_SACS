@@ -96,11 +96,11 @@ async def proxy_request(
     skip_response_headers = frozenset(
         {"transfer-encoding", "connection", "keep-alive"}
     )
-    response_headers = [
-        (k, v)
+    response_headers = {
+        k: v
         for k, v in response.headers.items()
         if k.lower() not in skip_response_headers
-    ]
+    }
 
     return Response(
         content=response.content,

@@ -32,11 +32,24 @@ class ActuatorCommandsConsumer:
             value_deserializer=lambda v: json.loads(v.decode("utf-8")),
             enable_auto_commit=True,
         )
-        await self._consumer.start()
-        logger.info(
-            "Kafka consumer started for topic '%s'",
-            settings.kafka_topic_actuator_commands,
-        )
+
+        delay = 1.0
+        while True:
+            try:
+                await self._consumer.start()
+                logger.info(
+                    "Kafka consumer started for topic '%s'",
+                    settings.kafka_topic_actuator_commands,
+                )
+                break
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.error(
+                    "Failed to start Kafka consumer (will retry in %.1fs): %s",
+                    delay,
+                    exc,
+                )
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, 30.0)
 
     async def stop(self) -> None:
         if self._consumer is None:

@@ -1,7 +1,9 @@
-from pydantic import BaseSettings, PostgresDsn
+from pydantic import PostgresDsn
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class ActuatorRulesServiceSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env")
     service_name: str = "actuator-rules-service"
     host: str = "0.0.0.0"
     port: int = 8003
@@ -11,9 +13,6 @@ class ActuatorRulesServiceSettings(BaseSettings):
     kafka_topic_actuator_commands: str = "actuator-commands"
 
     database_url: PostgresDsn | str = "postgresql://postgres:postgres@postgres:5432/rules-db"
-
-    class Config:
-        env_file = ".env"
 
 
 settings = ActuatorRulesServiceSettings()

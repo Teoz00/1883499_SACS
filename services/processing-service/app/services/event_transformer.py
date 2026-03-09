@@ -14,6 +14,7 @@ class RawEvent(BaseModel):
     type: str
     value: float
     timestamp: str
+    status: str | None = None
 
 
 def transform_raw_event(raw: Mapping[str, Any]) -> UnifiedEvent:
@@ -32,6 +33,7 @@ def transform_raw_event(raw: Mapping[str, Any]) -> UnifiedEvent:
         type=raw_event.type,
         value=raw_event.value,
         timestamp=raw_event.timestamp,
+        status=raw_event.status,
     )
     logger.debug(
         "Transformed raw event sensor_id=%s into UnifiedEvent event_id=%s",

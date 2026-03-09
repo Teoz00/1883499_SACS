@@ -22,7 +22,8 @@ def _path_with_prefix(prefix: str, path: str) -> str:
 @router.api_route("/sensors/{path:path}", methods=METHODS)
 async def proxy_sensors(request: Request, path: str) -> Response:
     """Forward /api/sensors/** to the sensors backend (simulator)."""
-    backend_path = _path_with_prefix("/sensors", path)
+    # Simulator exposes sensors under /api/sensors.
+    backend_path = _path_with_prefix("/api/sensors", path)
     return await proxy_request(settings.sensors_service_url, backend_path, request)
 
 
@@ -31,6 +32,13 @@ async def proxy_actuators(request: Request, path: str) -> Response:
     """Forward /api/actuators/** to the actuator-management-service."""
     backend_path = _path_with_prefix("/actuators", path)
     return await proxy_request(settings.actuators_service_url, backend_path, request)
+
+
+@router.api_route("/rules", methods=METHODS)
+async def proxy_rules_root(request: Request) -> Response:
+    """Forward /api/rules to the rule-management-service."""
+    # Rule management exposes /rules/ with a trailing slash.
+    return await proxy_request(settings.rules_service_url, "/rules/", request)
 
 
 @router.api_route("/rules/{path:path}", methods=METHODS)

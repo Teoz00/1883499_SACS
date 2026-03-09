@@ -1,20 +1,19 @@
 from typing import AsyncGenerator
 
-from pydantic import BaseSettings, PostgresDsn
+from pydantic import PostgresDsn
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 
 from app.models.rule import Base
 
 
 class RuleManagementServiceSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env")
     service_name: str = "rule-management-service"
     host: str = "0.0.0.0"
     port: int = 8004
 
     database_url: PostgresDsn | str = "postgresql://postgres:postgres@postgres:5432/rules-db"
-
-    class Config:
-        env_file = ".env"
 
 
 settings = RuleManagementServiceSettings()

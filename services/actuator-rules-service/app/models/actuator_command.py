@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ActuatorCommand(BaseModel):
@@ -11,5 +11,7 @@ class ActuatorCommand(BaseModel):
 
     actuator_id: str
     command: Literal["ON", "OFF"]
-    timestamp: datetime = datetime.now(timezone.utc)
+    timestamp: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
 

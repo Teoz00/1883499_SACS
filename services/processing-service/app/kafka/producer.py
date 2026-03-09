@@ -26,13 +26,26 @@ class NormalizedEventsProducer:
         self._producer = AIOKafkaProducer(
             loop=self._loop,
             bootstrap_servers=settings.kafka_bootstrap_servers,
-            value_serializer=lambda v: json.dumps(v).encode("utf-8"),
+            value_serializer=lambda v: json.dumps(v, default=str).encode("utf-8"),
         )
-        await self._producer.start()
-        logger.info(
-            "Kafka producer started for topic '%s'",
-            settings.kafka_topic_normalized_events,
-        )
+
+        delay = 1.0
+        while True:
+            try:
+                await self._producer.start()
+                logger.info(
+                    "Kafka producer started for topic '%s'",
+                    settings.kafka_topic_normalized_events,
+                )
+                break
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.error(
+                    "Failed to start Kafka producer (will retry in %.1fs): %s",
+                    delay,
+                    exc,
+                )
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, 30.0)
 
     async def stop(self) -> None:
         if self._producer is None:
