@@ -38,6 +38,13 @@ async def proxy_actuators_root(request: Request) -> Response:
     return await proxy_request(settings.actuators_service_url, "/actuators/", request)
 
 
+@router.api_route("/actuators/{path:path}", methods=METHODS)
+async def proxy_actuators(request: Request, path: str) -> Response:
+    """Forward /api/actuators/** to the actuator-management-service."""
+    backend_path = _path_with_prefix("/actuators", path)
+    return await proxy_request(settings.actuators_service_url, backend_path, request)
+
+
 @router.api_route("/rules", methods=METHODS)
 async def proxy_rules_root(request: Request) -> Response:
     """Forward /api/rules to the rule-management-service."""
