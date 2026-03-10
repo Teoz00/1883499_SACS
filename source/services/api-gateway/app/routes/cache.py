@@ -24,9 +24,10 @@ async def update_sensor_cache(data: dict) -> dict:
     """Update sensor cache. Called by realtime service."""
     from app.main import latest_sensor_data
     
-    sensor_id = data.get("sensor_id")
-    if sensor_id:
-        latest_sensor_data[sensor_id] = data
+    # Use source_id for new UnifiedEvent schema, fallback to sensor_id for compatibility
+    source_id = data.get("source_id") or data.get("sensor_id")
+    if source_id:
+        latest_sensor_data[source_id] = data
     return {"status": "ok"}
 
 @router.post("/actuators/update")

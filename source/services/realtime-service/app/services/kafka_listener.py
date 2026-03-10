@@ -97,9 +97,9 @@ class NormalizedEventsListener:
 
                 try:
                     # Update sensor cache with latest value
-                    sensor_id = payload.get("sensor_id")
-                    if sensor_id:
-                        self._sensor_cache[sensor_id] = payload
+                    source_id = payload.get("source_id")
+                    if source_id:
+                        self._sensor_cache[source_id] = payload
                         
                         # Update API Gateway cache
                         try:

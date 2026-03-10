@@ -128,18 +128,24 @@ class RuleEngine:
                 continue
 
             # Match the incoming event to the sensor referenced in the rule.
-            if event.sensor_id != parsed.sensor_name:
+            # Use source_id for matching with new unified event schema
+            if event.source_id != parsed.sensor_name:
                 continue
 
-            if not self._compare(event.value, parsed.operator, parsed.threshold):
+            # Use metrics[0].value as the comparison value for all rule evaluations
+            event_value = None
+            if event.metrics and len(event.metrics) > 0:
+                event_value = event.metrics[0].value
+
+            if not self._compare(event_value, parsed.operator, parsed.threshold):
                 continue
 
             logger.info(
-                "Rule matched: rule_id=%s name=%s sensor_id=%s value=%s op=%s threshold=%s",
+                "Rule matched: rule_id=%s name=%s source_id=%s value=%s op=%s threshold=%s",
                 parsed.rule_id,
                 parsed.rule_name,
-                event.sensor_id,
-                event.value,
+                event.source_id,
+                event_value,
                 parsed.operator,
                 parsed.threshold,
             )

@@ -70,9 +70,9 @@ class NormalizedEventsProducer:
                 value=payload,
             )
             logger.info(
-                "Published normalized event event_id=%s sensor_id=%s",
+                "Published normalized event event_id=%s source_id=%s",
                 payload.get("event_id"),
-                payload.get("sensor_id"),
+                payload.get("source_id"),
             )
         except Exception as exc:  # pragma: no cover - defensive
             logger.error("Error publishing normalized event to Kafka: %s", exc)

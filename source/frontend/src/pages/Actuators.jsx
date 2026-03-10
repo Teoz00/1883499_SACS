@@ -21,10 +21,11 @@ function Actuators() {
   const [info, setInfo] = useState(null);
 
   // Use WebSocket for real-time actuator state updates
-  const { status: wsStatus, actuatorStates, lastUpdated } = useWebSocketClient();
+  const manualOverrideTime = React.useRef({});
+  const { status: wsStatus, actuatorStates, setActuatorStates, lastUpdated } = useWebSocketClient(manualOverrideTime);
 
-  // Merge WebSocket states with local state and cached state (WebSocket takes precedence)
-  const mergedStates = { ...cachedStates, ...states, ...actuatorStates };
+  // Merge WebSocket states with local state and cached state (manual commands take precedence)
+  const mergedStates = { ...cachedStates, ...actuatorStates, ...states };
 
   // Load cached actuator data on component mount and tab visibility
   useEffect(() => {
@@ -116,8 +117,14 @@ function Actuators() {
       await apiPost(`/api/actuators/${actuatorId}`, { state: command });
       
       // Update ALL state sources immediately for instant UI feedback
+      const now = Date.now();
+      manualOverrideTime.current[actuatorId] = now;
+      setTimeout(() => {
+        delete manualOverrideTime.current[actuatorId];
+      }, 5000);
       setStates((prev) => ({ ...prev, [actuatorId]: command }));
       setCachedStates((prev) => ({ ...prev, [actuatorId]: command }));
+      setActuatorStates((prev) => ({ ...prev, [actuatorId]: command }));
       
       setLog((prev) => [
         ...prev,

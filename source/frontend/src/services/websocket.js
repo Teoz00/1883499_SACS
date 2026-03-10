@@ -14,7 +14,7 @@ const DEFAULT_ACTUATOR_WS_URL =
  * OR actuator state events:
  * { event_id, actuator_id, state, timestamp }
  */
-export function useWebSocketClient() {
+export function useWebSocketClient(manualOverrideTime = null) {
   const [status, setStatus] = useState("disconnected");
   const [lastUpdated, setLastUpdated] = useState(null);
   const [sensors, setSensors] = useState({});
@@ -56,19 +56,20 @@ export function useWebSocketClient() {
       try {
         const payload = JSON.parse(event.data);
         
-        // Handle sensor events
-        if (payload && typeof payload.sensor_id === "string") {
+        // Handle sensor events (unified event schema)
+        if (payload && typeof payload.source_id === "string") {
+          // Store the complete unified event
           setSensors((prev) => ({
             ...prev,
-            [payload.sensor_id]: payload,
+            [payload.source_id]: payload,
           }));
           setLastUpdated(payload.timestamp || new Date().toISOString());
 
           // Maintain a short history per sensor for basic trend charts.
           setHistory((prev) => {
-            const existing = prev[payload.sensor_id] || [];
+            const existing = prev[payload.source_id] || [];
             const next = [...existing, payload].slice(-50);
-            return { ...prev, [payload.sensor_id]: next };
+            return { ...prev, [payload.source_id]: next };
           });
         }
       } catch {
@@ -109,6 +110,9 @@ export function useWebSocketClient() {
         
         // Handle actuator events
         if (payload && typeof payload.actuator_id === "string") {
+          const overrideTs = manualOverrideTime?.current?.[payload.actuator_id];
+          const eventTs = payload.timestamp ? new Date(payload.timestamp).getTime() : null;
+          if (overrideTs && eventTs !== null && eventTs < overrideTs) return;
           setActuatorStates((prev) => ({
             ...prev,
             [payload.actuator_id]: payload.state || "OFF",
@@ -128,5 +132,5 @@ export function useWebSocketClient() {
     };
   }, []);
 
-  return { status, sensors, actuatorStates, history, lastUpdated };
+  return { status, sensors, actuatorStates, setActuatorStates, history, lastUpdated };
 }

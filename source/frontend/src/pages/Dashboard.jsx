@@ -81,29 +81,33 @@ function Dashboard() {
   // Load cached sensor data on component mount and tab visibility change
   useEffect(() => {
     let cancelled = false;
-    async function loadCachedSensors() {
+    
+    const loadCache = async (retryOnEmpty = true) => {
       try {
-        console.log("Loading cached sensors from /api/sensors/latest...");
-        const data = await apiGet("/api/sensors/latest");
-        console.log("Received cache data:", data);
-        if (!cancelled && data && data.sensors) {
-          console.log("Setting cached sensors:", data.sensors);
-          setCachedSensors(data.sensors);
-        } else {
-          console.log("No cache data available");
+        const response = await apiGet("/api/sensors/latest");
+        const sensors = response?.sensors || {};
+        
+        if (Object.keys(sensors).length === 0 && retryOnEmpty) {
+          setTimeout(() => loadCache(false), 2000);
+          return;
+        }
+        
+        if (!cancelled) {
+          setCachedSensors(sensors);
         }
       } catch (err) {
         console.warn("Failed to load cached sensor data:", err);
       }
-    }
-    loadCachedSensors();
+    };
+    
+    loadCache();
     
     // Reload when page becomes visible (tab switch)
     const handleVisibilityChange = () => {
       console.log("Visibility changed, hidden:", document.hidden);
       if (!document.hidden) {
         console.log("Page became visible, reloading cache...");
-        loadCachedSensors();
+        loadCache(false); // No retry on tab switch
       }
     };
     
@@ -118,8 +122,8 @@ function Dashboard() {
   // Merge WebSocket data with cached data (WebSocket takes precedence)
   const latestById = useMemo(() => {
     const merged = { ...cachedSensors };
-    Object.keys(wsSensors).forEach(sensorId => {
-      merged[sensorId] = wsSensors[sensorId];
+    Object.keys(wsSensors).forEach(sourceId => {
+      merged[sourceId] = wsSensors[sourceId];
     });
     return merged;
   }, [cachedSensors, wsSensors]);
@@ -181,9 +185,13 @@ function Dashboard() {
           <ul style={{ margin: 0, paddingLeft: "1.1rem" }}>
             {alerts.map((meta) => {
               const evt = latestById[meta.id];
+              const primaryMetric = evt?.metrics?.[0];
+              const value = primaryMetric?.value;
+              const unit = primaryMetric?.unit || meta.unitLabel;
+              
               return (
                 <li key={meta.id}>
-                  <strong>{meta.label}</strong>: {evt?.value} {meta.unitLabel}
+                  <strong>{meta.label}</strong>: {value} {unit}
                 </li>
               );
             })}
@@ -213,14 +221,18 @@ function Dashboard() {
         >
           {KNOWN_SENSORS.map((meta) => {
             const evt = latestById[meta.id];
-            const value =
-              evt && typeof evt.value === "number"
-                ? evt.value
-                : undefined;
+            
+            // Extract primary value from metrics array
+            const primaryMetric = evt?.metrics?.[0];
+            const value = primaryMetric?.value;
             const isAlert =
               evt &&
               typeof evt.status === "string" &&
               (evt.status.toLowerCase() === "warning" || evt.status.toLowerCase() === "critical");
+
+            // Check if sensor has multiple metrics and should display all
+            const hasMultipleMetrics = evt?.metrics && evt.metrics.length > 1;
+            const showAllMetrics = ["air_quality_pm25", "water_tank_level", "hydroponic_ph", "air_quality_voc"].includes(meta.id);
 
             return (
               <article
@@ -282,9 +294,20 @@ function Dashboard() {
                       color: "#4a5568",
                     }}
                   >
-                    {meta.unitLabel}
+                    {primaryMetric?.unit || meta.unitLabel}
                   </span>
                 </p>
+                {showAllMetrics && hasMultipleMetrics && (
+                  <div
+                    style={{
+                      fontSize: "0.7rem",
+                      color: "#718096",
+                      marginTop: "0.25rem",
+                    }}
+                  >
+                    {evt.metrics.map(m => `${m.name}: ${m.value.toFixed(2)} ${m.unit}`).join(" | ")}
+                  </div>
+                )}
               </article>
             );
           })}
@@ -309,11 +332,12 @@ function Dashboard() {
         >
           {KNOWN_SENSORS.map((meta) => {
             const series = (history[meta.id] || []).filter(
-              (e) => typeof e.value === "number"
+              (e) => e && e.metrics && Array.isArray(e.metrics) && e.metrics.length > 0 && 
+                     typeof e.metrics[0].value === "number"
             );
             const chartData = series.map((e, idx) => ({
               index: idx,
-              value: e.value,
+              value: e.metrics[0].value,
               timestamp: e.timestamp,
             }));
 

@@ -14,33 +14,38 @@ import {
 const TELEMETRY_SOURCES = [
   {
     id: "solar_array",
-    label: "Solar Array Power",
+    label: "Solar Array",
     unitLabel: "kW",
-    metricKey: "power_kw",
   },
   {
     id: "power_bus",
     label: "Power Bus",
     unitLabel: "kW",
-    metricKey: "power_kw",
   },
   {
     id: "power_consumption",
     label: "Power Consumption",
     unitLabel: "kW",
-    metricKey: "power_kw",
   },
   {
     id: "thermal_loop",
-    label: "Thermal Loop Temperature",
+    label: "Thermal Loop",
     unitLabel: "°C",
-    metricKey: "temperature_c",
   },
   {
-    id: "airlock",
-    label: "Airlock Cycles",
+    id: "airlock-1",
+    label: "Airlock",
     unitLabel: "cycles/h",
-    metricKey: "cycles_per_hour",
+  },
+  {
+    id: "radiation",
+    label: "Radiation",
+    unitLabel: "µSv/h",
+  },
+  {
+    id: "life_support",
+    label: "Life Support",
+    unitLabel: "Status",
   },
 ];
 
@@ -51,29 +56,33 @@ function Telemetry() {
   // Load cached sensor data on component mount and tab visibility change (exact same as Dashboard)
   useEffect(() => {
     let cancelled = false;
-    async function loadCachedSensors() {
+    
+    const loadCache = async (retryOnEmpty = true) => {
       try {
-        console.log("Loading cached sensors for telemetry from /api/sensors/latest...");
-        const data = await apiGet("/api/sensors/latest");
-        console.log("Received cache data for telemetry:", data);
-        if (!cancelled && data && data.sensors) {
-          console.log("Setting cached sensors for telemetry:", data.sensors);
-          setCachedSensors(data.sensors);
-        } else {
-          console.log("No cache data available for telemetry");
+        const response = await apiGet("/api/sensors/latest");
+        const sensors = response?.sensors || {};
+        
+        if (Object.keys(sensors).length === 0 && retryOnEmpty) {
+          setTimeout(() => loadCache(false), 2000);
+          return;
+        }
+        
+        if (!cancelled) {
+          setCachedSensors(sensors);
         }
       } catch (err) {
         console.warn("Failed to load cached sensor data for telemetry:", err);
       }
-    }
-    loadCachedSensors();
+    };
+    
+    loadCache();
     
     // Reload when page becomes visible (tab switch)
     const handleVisibilityChange = () => {
       console.log("Telemetry visibility changed, hidden:", document.hidden);
       if (!document.hidden) {
         console.log("Telemetry page became visible, reloading cache...");
-        loadCachedSensors();
+        loadCache(false); // No retry on tab switch
       }
     };
     
@@ -88,8 +97,8 @@ function Telemetry() {
   // Merge WebSocket data with cached data (WebSocket takes precedence) - exact same as Dashboard
   const latestById = useMemo(() => {
     const merged = { ...cachedSensors };
-    Object.keys(wsSensors).forEach(sensorId => {
-      merged[sensorId] = wsSensors[sensorId];
+    Object.keys(wsSensors).forEach(sourceId => {
+      merged[sourceId] = wsSensors[sourceId];
     });
     return merged;
   }, [cachedSensors, wsSensors]);
@@ -144,14 +153,25 @@ function Telemetry() {
         >
           {TELEMETRY_SOURCES.map((meta) => {
             const evt = latestById[meta.id];
-            const value =
-              evt && typeof evt.value === "number" ? evt.value : undefined;
+            
+            // Determine if we have data
+            const hasData = evt && evt.metrics && Array.isArray(evt.metrics) && evt.metrics.length > 0;
+            const isLive = hasData;
+            
+            // Extract primary metric for chart
+            const primaryMetric = evt?.metrics?.[0];
+            const primaryValue = primaryMetric?.value;
+            const primaryUnit = primaryMetric?.unit || meta.unitLabel;
+            
+            // Filter history for chart data
             const series = (history[meta.id] || []).filter(
-              (e) => typeof e.value === "number"
+              (e) => e && e.metrics && Array.isArray(e.metrics) && 
+                     e.metrics.length > 0 && 
+                     typeof e.metrics[0].value === "number"
             );
             const chartData = series.map((e, idx) => ({
               index: idx,
-              value: e.value,
+              value: e.metrics[0]?.value,
               timestamp: e.timestamp,
             }));
 
@@ -172,38 +192,63 @@ function Telemetry() {
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "baseline",
-                    marginBottom: "0.35rem",
+                    marginBottom: "0.5rem",
                   }}
                 >
                   <h4
                     style={{
                       margin: 0,
                       fontSize: "0.95rem",
+                      fontWeight: 600,
                     }}
                   >
                     {meta.label}
                   </h4>
-                  <span
-                    style={{
-                      fontSize: "0.7rem",
-                      padding: "0.1rem 0.4rem",
-                      borderRadius: "999px",
-                      backgroundColor: "#edf2f7",
-                      color: "#4a5568",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {value === undefined ? "WAITING" : "LIVE"}
-                  </span>
+                  <div style={{ display: "flex", gap: "0.25rem", alignItems: "center" }}>
+                    <span
+                      style={{
+                        fontSize: "0.7rem",
+                        padding: "0.1rem 0.4rem",
+                        borderRadius: "999px",
+                        backgroundColor: isLive ? "#10b981" : "#6b7280",
+                        color: "white",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {isLive ? "LIVE" : "WAITING"}
+                    </span>
+                    {evt && evt.status === "warning" && (
+                      <span
+                        style={{
+                          fontSize: "0.6rem",
+                          padding: "0.1rem 0.4rem",
+                          borderRadius: "999px",
+                          backgroundColor: "#fed7d7",
+                          color: "#9c4221",
+                          fontWeight: 600,
+                        }}
+                      >
+                        ⚠️ WARNING
+                      </span>
+                    )}
+                  </div>
                 </div>
+                
+                <div
+                  style={{
+                    fontSize: "0.8rem",
+                    color: "#374151",
+                    lineHeight: "1.4",
+                  }}
+                >
                 <p
                   style={{
-                    margin: 0,
+                    margin: "0 0 0.5rem 0",
                     fontSize: "1.4rem",
                     fontWeight: 600,
                   }}
                 >
-                  {value !== undefined ? value.toFixed(2) : "–"}{" "}
+                  {primaryValue !== undefined && primaryValue !== null ? primaryValue.toFixed(2) : "–"}{" "}
                   <span
                     style={{
                       fontSize: "0.8rem",
@@ -211,11 +256,13 @@ function Telemetry() {
                       color: "#4a5568",
                     }}
                   >
-                    {meta.unitLabel}
+                    {primaryUnit}
                   </span>
                 </p>
+                
+                {/* Chart for primary metric */}
                 {chartData.length > 1 ? (
-                  <div style={{ width: "100%", height: 120, marginTop: "0.5rem" }}>
+                  <div style={{ width: "100%", height: 120, marginBottom: "0.5rem" }}>
                     <ResponsiveContainer>
                       <LineChart data={chartData} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
                         <XAxis
@@ -231,7 +278,7 @@ function Telemetry() {
                         />
                         <Tooltip
                           formatter={(val) => [
-                            `${val.toFixed(2)} ${meta.unitLabel}`,
+                            `${val.toFixed(2)} ${primaryUnit}`,
                             "Value",
                           ]}
                           labelFormatter={(index) => {
@@ -253,10 +300,62 @@ function Telemetry() {
                     </ResponsiveContainer>
                   </div>
                 ) : (
-                  <p style={{ margin: "0.5rem 0 0", fontSize: "0.75rem" }}>
-                    Waiting for enough data points to draw a trend.
-                  </p>
+                  <div style={{ marginBottom: "0.5rem", fontSize: "0.7rem", color: "#9ca3af" }}>
+                    Waiting for chart data...
+                  </div>
                 )}
+                
+                {/* Secondary metrics list */}
+                {hasData && evt.metrics.length > 1 && (
+                  <div
+                    style={{
+                      fontSize: "0.7rem",
+                      color: "#374151",
+                      lineHeight: "1.4",
+                      borderTop: "1px solid #e2e8f0",
+                      paddingTop: "0.5rem",
+                    }}
+                  >
+                    {evt.metrics.slice(1).map((m, index) => (
+                      <div key={m.name || index} style={{ marginBottom: "0.1rem", display: "flex", justifyContent: "space-between" }}>
+                        <span>{m.name}</span>
+                        <span>{m.value.toFixed(2)} {m.unit}</span>
+                      </div>
+                    ))}
+                    {evt.state_label && (
+                      <div style={{ fontWeight: 600, marginTop: "0.2rem", display: "flex", justifyContent: "space-between" }}>
+                        <span>state</span>
+                        <span>{evt.state_label}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {/* Single metric case - show state_label if present */}
+                {hasData && evt.metrics.length === 1 && evt.state_label && (
+                  <div
+                    style={{
+                      fontSize: "0.7rem",
+                      color: "#374151",
+                      fontWeight: 600,
+                      borderTop: "1px solid #e2e8f0",
+                      paddingTop: "0.5rem",
+                      display: "flex",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <span>state</span>
+                    <span>{evt.state_label}</span>
+                  </div>
+                )}
+                
+                {/* No data case */}
+                {!hasData && (
+                  <div style={{ color: "#9ca3af", fontStyle: "italic" }}>
+                    No data yet
+                  </div>
+                )}
+                </div>
               </article>
             );
           })}
