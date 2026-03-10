@@ -46,5 +46,4 @@ class ProcessingKafkaClient:
             return
 
         topic = settings.kafka_topic_normalized_events
-        # await self._producer.send_and_wait(topic, value=payload)
 

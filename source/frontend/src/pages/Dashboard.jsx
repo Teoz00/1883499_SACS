@@ -124,15 +124,6 @@ function Dashboard() {
     return merged;
   }, [cachedSensors, wsSensors]);
 
-  // Apply exact same pattern for telemetry
-  const telemetryById = useMemo(() => {
-    const merged = { ...cachedSensors };
-    Object.keys(wsSensors).forEach(sensorId => {
-      merged[sensorId] = wsSensors[sensorId];
-    });
-    return merged;
-  }, [cachedSensors, wsSensors]);
-
   const alerts = KNOWN_SENSORS.filter((meta) => {
     const evt = latestById[meta.id];
     if (!evt) return false;

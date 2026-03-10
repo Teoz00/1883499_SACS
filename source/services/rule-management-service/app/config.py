@@ -1,3 +1,4 @@
+import logging
 from typing import AsyncGenerator
 
 from pydantic import PostgresDsn
@@ -48,8 +49,30 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
 async def init_db() -> None:
     """
     Initialize the database by creating tables if they do not exist.
+    Retry logic to handle PostgreSQL startup delays.
     """
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    import asyncio
+    
+    logging.info("Initializing database...")
+    logging.info(f"Using database URL: {ASYNC_DATABASE_URL}")
+    
+    max_retries = 5
+    retry_delay = 2.0
+    
+    for attempt in range(max_retries):
+        try:
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+            logging.info("Database tables created successfully")
+            return
+        except Exception as e:
+            logging.warning(f"Database initialization attempt {attempt + 1} failed: {e}")
+            if attempt < max_retries - 1:
+                logging.info(f"Retrying in {retry_delay} seconds...")
+                await asyncio.sleep(retry_delay)
+                retry_delay *= 2
+            else:
+                logging.error("Database initialization failed after all retries")
+                raise
 
 

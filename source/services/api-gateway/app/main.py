@@ -14,9 +14,13 @@ latest_sensor_data: dict = {}
 latest_actuator_data: dict = {}
 
 def create_app() -> FastAPI:
+    """
+    Create and configure the FastAPI application for API Gateway.
+    Sets up CORS, routes, and global caches for sensor/actuator data.
+    """
     app = FastAPI(title="API Gateway")
 
-    # Allow all origins for local demo development
+    # Enable CORS for frontend access
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],

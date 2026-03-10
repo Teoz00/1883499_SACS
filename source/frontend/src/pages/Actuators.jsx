@@ -131,35 +131,37 @@ function Actuators() {
       ]);
 
       // When manually toggling an actuator, temporarily disable all
-      // rules that affect this actuator.
-      try {
-        const allRules = await apiGet("/api/rules");
-        if (Array.isArray(allRules) && allRules.length > 0) {
-          const affected = allRules.filter(
-            (r) =>
-              typeof r.action === "string" &&
-              r.action.toLowerCase().includes(actuatorId.toLowerCase())
-          );
-          if (affected.length > 0) {
-            await Promise.all(
-              affected.map((rule) =>
-                apiPut(`/api/rules/${rule.id}`, {
-                  name: rule.name,
-                  condition: rule.condition,
-                  action: rule.action,
-                  enabled: false,
-                })
-              )
+      // rules that affect this actuator (run in background to avoid UI delay)
+      setTimeout(async () => {
+        try {
+          const allRules = await apiGet("/api/rules");
+          if (Array.isArray(allRules) && allRules.length > 0) {
+            const affected = allRules.filter(
+              (r) =>
+                typeof r.action === "string" &&
+                r.action.toLowerCase().includes(actuatorId.toLowerCase())
             );
-            setInfo(
-              `Temporarily disabled ${affected.length} rule(s) affecting ${actuatorId}.`
-            );
+            if (affected.length > 0) {
+              await Promise.all(
+                affected.map((rule) =>
+                  apiPut(`/api/rules/${rule.id}`, {
+                    name: rule.name,
+                    condition: rule.condition,
+                    action: rule.action,
+                    enabled: false,
+                  })
+                )
+              );
+              setInfo(
+                `Temporarily disabled ${affected.length} rule(s) affecting ${actuatorId}.`
+              );
+            }
           }
+        } catch (err) {
+          console.error("Failed to disable rules for actuator", actuatorId, err);
+          // Non-fatal: actuator command still went through.
         }
-      } catch (err) {
-        console.error("Failed to disable rules for actuator", actuatorId, err);
-        // Non-fatal: actuator command still went through.
-      }
+      }, 100); // Small delay to not block the UI
     } catch (err) {
       console.error(err);
       setError("Failed to send actuator command.");

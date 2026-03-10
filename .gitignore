@@ -20,3 +20,5 @@ dist/
 
 # Simulator image archive
 infrastructure/simulator/mars-iot-simulator-oci.tar
+source/infrastructure/simulator/mars-iot-simulator-oci.tar
+

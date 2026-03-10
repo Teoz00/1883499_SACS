@@ -22,6 +22,10 @@ latest_actuator_data: Dict[str, Any] = {}
 
 
 def create_app() -> FastAPI:
+    """
+    Create and configure the FastAPI application for real-time WebSocket service.
+    Sets up logging, routes, and WebSocket endpoint for sensor/actuator updates.
+    """
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s - %(message)s",

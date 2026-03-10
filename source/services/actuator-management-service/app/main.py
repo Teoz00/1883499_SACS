@@ -19,6 +19,10 @@ stop_event: asyncio.Event | None = None
 
 
 def create_app() -> FastAPI:
+    """
+    Create and configure the FastAPI application for actuator management.
+    Sets up logging, routes, and WebSocket endpoint for real-time updates.
+    """
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s - %(message)s",
@@ -46,6 +50,9 @@ def create_app() -> FastAPI:
 
     @app.on_event("startup")
     async def on_startup() -> None:
+        """
+        Initialize Kafka consumer and command processor on service startup.
+        """
         global consumer, processor_task, stop_event
 
         logger.info("Starting actuator-management-service components.")
@@ -62,6 +69,9 @@ def create_app() -> FastAPI:
 
     @app.on_event("shutdown")
     async def on_shutdown() -> None:
+        """
+        Gracefully shut down Kafka consumer and command processor.
+        """
         global consumer, processor_task, stop_event
 
         logger.info("Shutting down actuator-management-service components.")

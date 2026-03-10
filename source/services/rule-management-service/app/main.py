@@ -2,7 +2,7 @@ import logging
 
 from fastapi import FastAPI
 
-from app.config import init_db
+from app.config import init_db, settings
 from app.routes.health import router as health_router
 from app.routes.rules import router as rules_router
 
@@ -20,7 +20,14 @@ def create_app() -> FastAPI:
 
     @app.on_event("startup")
     async def on_startup() -> None:
-        await init_db()
+        logging.info("Starting rule-management-service...")
+        logging.info(f"Database URL: {settings.database_url}")
+        try:
+            await init_db()
+            logging.info("Database initialized successfully")
+        except Exception as e:
+            logging.error(f"Failed to initialize database: {e}")
+            raise
 
     return app
 
