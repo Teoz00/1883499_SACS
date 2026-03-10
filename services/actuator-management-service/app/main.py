@@ -1,16 +1,18 @@
 import asyncio
 import logging
 
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket
 
 from app.kafka.consumer import ActuatorCommandsConsumer
 from app.routes.health import router as health_router
 from app.routes.actuators import router as actuators_router
 from app.services.command_executor import run_command_processor
+from app.services.websocket_manager import WebSocketManager
 
 
 logger = logging.getLogger(__name__)
 
+ws_manager = WebSocketManager()
 consumer: ActuatorCommandsConsumer | None = None
 processor_task: asyncio.Task | None = None
 stop_event: asyncio.Event | None = None
@@ -27,6 +29,21 @@ def create_app() -> FastAPI:
     app.include_router(health_router, prefix="/health", tags=["health"])
     app.include_router(actuators_router)
 
+    @app.websocket("/ws/actuators")
+    async def websocket_actuators(ws: WebSocket) -> None:
+        """
+        WebSocket endpoint for broadcasting actuator state changes.
+        """
+        await ws_manager.connect(ws)
+        try:
+            # Keep connection open; we don't expect messages from client
+            while True:
+                await ws.receive_text()
+        except Exception:
+            pass
+        finally:
+            await ws_manager.disconnect(ws)
+
     @app.on_event("startup")
     async def on_startup() -> None:
         global consumer, processor_task, stop_event
@@ -39,7 +56,7 @@ def create_app() -> FastAPI:
 
         stop_event = asyncio.Event()
         processor_task = loop.create_task(
-            run_command_processor(consumer=consumer, stop_event=stop_event),
+            run_command_processor(consumer=consumer, stop_event=stop_event, ws_manager=ws_manager),
             name="actuator-command-processor",
         )
 

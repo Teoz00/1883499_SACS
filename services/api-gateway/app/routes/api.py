@@ -1,6 +1,7 @@
 """
 Proxy routes: /api/sensors, /api/actuators, /api/rules forward to backend services.
 """
+import json
 from fastapi import APIRouter, Request
 from starlette.responses import Response
 
@@ -26,23 +27,39 @@ def _path_with_prefix(prefix: str, path: str) -> str:
 
 @router.api_route("/sensors/{path:path}", methods=METHODS)
 async def proxy_sensors(request: Request, path: str) -> Response:
-    """Forward /api/sensors/** to the sensors backend (simulator)."""
-    # Simulator exposes sensors under /api/sensors.
+    """Forward /api/sensors/** to appropriate backend."""
+    # Special case: /api/sensors/latest goes to local cache
+    if path == "latest":
+        from app.main import latest_sensor_data
+        return Response(
+            content=json.dumps({"sensors": latest_sensor_data}),
+            media_type="application/json"
+        )
+    
+    # All other sensor requests go to simulator
     backend_path = _path_with_prefix("/api/sensors", path)
     return await proxy_request(settings.sensors_service_url, backend_path, request)
+
+@router.api_route("/actuators/{path:path}", methods=METHODS)
+async def proxy_actuators(request: Request, path: str) -> Response:
+    """Forward /api/actuators/** to appropriate backend."""
+    # Special case: /api/actuators/latest goes to local cache
+    if path == "latest":
+        from app.main import latest_actuator_data
+        return Response(
+            content=json.dumps({"actuators": latest_actuator_data}),
+            media_type="application/json"
+        )
+    
+    # All other actuator requests go to actuator management service
+    backend_path = _path_with_prefix("/actuators", path)
+    return await proxy_request(settings.actuators_service_url, backend_path, request)
 
 
 @router.api_route("/actuators", methods=METHODS)
 async def proxy_actuators_root(request: Request) -> Response:
     """Forward /api/actuators to the actuator-management-service."""
     return await proxy_request(settings.actuators_service_url, "/actuators/", request)
-
-
-@router.api_route("/actuators/{path:path}", methods=METHODS)
-async def proxy_actuators(request: Request, path: str) -> Response:
-    """Forward /api/actuators/** to the actuator-management-service."""
-    backend_path = _path_with_prefix("/actuators", path)
-    return await proxy_request(settings.actuators_service_url, backend_path, request)
 
 
 @router.api_route("/rules", methods=METHODS)

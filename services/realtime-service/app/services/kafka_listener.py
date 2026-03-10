@@ -1,7 +1,9 @@
 import asyncio
-import json
 import logging
-
+from datetime import datetime, timezone
+from typing import Dict, Any
+import httpx
+import json
 from aiokafka import AIOKafkaConsumer
 
 from app.config import settings
@@ -15,14 +17,17 @@ class NormalizedEventsListener:
     """
     Kafka listener that consumes normalized events and forwards them to
     connected WebSocket clients via the provided WebSocketManager.
+    Also maintains an in-memory cache of the latest sensor values.
     """
 
     def __init__(
         self,
         ws_manager: WebSocketManager,
+        sensor_cache: Dict[str, dict],
         loop: asyncio.AbstractEventLoop | None = None,
     ) -> None:
         self._ws_manager = ws_manager
+        self._sensor_cache = sensor_cache
         self._loop = loop or asyncio.get_event_loop()
         self._consumer: AIOKafkaConsumer | None = None
 
@@ -91,6 +96,21 @@ class NormalizedEventsListener:
                     continue
 
                 try:
+                    # Update sensor cache with latest value
+                    sensor_id = payload.get("sensor_id")
+                    if sensor_id:
+                        self._sensor_cache[sensor_id] = payload
+                        
+                        # Update API Gateway cache
+                        try:
+                            async with httpx.AsyncClient(timeout=2.0) as client:
+                                await client.post(
+                                    "http://api-gateway:8000/cache/sensors/update",
+                                    json=payload
+                                )
+                        except Exception as exc:
+                            logger.warning(f"Failed to update API Gateway sensor cache: {exc}")
+                        
                     await self._ws_manager.broadcast_json(payload)
                 except Exception as exc:  # pragma: no cover - defensive
                     logger.error("Failed to broadcast message to websockets: %s", exc)

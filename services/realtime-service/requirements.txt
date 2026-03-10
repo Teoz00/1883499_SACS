@@ -3,4 +3,5 @@ uvicorn[standard]
 pydantic
 pydantic-settings
 aiokafka
+httpx
 

@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 
 const DEFAULT_WS_URL =
   import.meta.env.VITE_WS_URL || "ws://localhost:8006/ws/events";
+const DEFAULT_ACTUATOR_WS_URL =
+  import.meta.env.VITE_ACTUATOR_WS_URL || "ws://localhost:8005/ws/actuators";
 
 /**
  * WebSocket client hook used by Dashboard and Actuators pages to connect to the
@@ -18,18 +20,39 @@ export function useWebSocketClient() {
   const [sensors, setSensors] = useState({});
   const [actuatorStates, setActuatorStates] = useState({});
   const [history, setHistory] = useState({});
-  const socketRef = useRef(null);
+  const sensorSocketRef = useRef(null);
+  const actuatorSocketRef = useRef(null);
 
   useEffect(() => {
+    // Connect to sensors WebSocket
     setStatus("connecting");
-    const socket = new WebSocket(DEFAULT_WS_URL);
-    socketRef.current = socket;
+    const sensorSocket = new WebSocket(DEFAULT_WS_URL);
+    sensorSocketRef.current = sensorSocket;
 
-    socket.onopen = () => setStatus("connected");
-    socket.onclose = () => setStatus("disconnected");
-    socket.onerror = () => setStatus("error");
+    sensorSocket.onopen = () => {
+      console.log("Sensor WebSocket connected");
+      if (actuatorSocketRef.current?.readyState === WebSocket.OPEN) {
+        setStatus("connected");
+      } else {
+        setStatus("sensors-connected");
+      }
+    };
+    sensorSocket.onclose = () => {
+      console.log("Sensor WebSocket disconnected");
+      if (actuatorSocketRef.current?.readyState === WebSocket.OPEN) {
+        setStatus("actuators-connected");
+      } else if (actuatorSocketRef.current?.readyState === WebSocket.CONNECTING) {
+        setStatus("actuators-connecting");
+      } else {
+        setStatus("disconnected");
+      }
+    };
+    sensorSocket.onerror = (error) => {
+      console.error("Sensor WebSocket error:", error);
+      setStatus("error");
+    };
 
-    socket.onmessage = (event) => {
+    sensorSocket.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
         
@@ -48,6 +71,41 @@ export function useWebSocketClient() {
             return { ...prev, [payload.sensor_id]: next };
           });
         }
+      } catch {
+        // Ignore malformed messages.
+      }
+    };
+
+    // Connect to actuators WebSocket
+    const actuatorSocket = new WebSocket(DEFAULT_ACTUATOR_WS_URL);
+    actuatorSocketRef.current = actuatorSocket;
+
+    actuatorSocket.onopen = () => {
+      console.log("Actuator WebSocket connected");
+      if (sensorSocketRef.current?.readyState === WebSocket.OPEN) {
+        setStatus("connected");
+      } else {
+        setStatus("actuators-connected");
+      }
+    };
+    actuatorSocket.onclose = () => {
+      console.log("Actuator WebSocket disconnected");
+      if (sensorSocketRef.current?.readyState === WebSocket.OPEN) {
+        setStatus("sensors-connected");
+      } else if (sensorSocketRef.current?.readyState === WebSocket.CONNECTING) {
+        setStatus("sensors-connecting");
+      } else {
+        setStatus("disconnected");
+      }
+    };
+    actuatorSocket.onerror = (error) => {
+      console.error("Actuator WebSocket error:", error);
+      setStatus("error");
+    };
+
+    actuatorSocket.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data);
         
         // Handle actuator events
         if (payload && typeof payload.actuator_id === "string") {
@@ -63,8 +121,10 @@ export function useWebSocketClient() {
     };
 
     return () => {
-      socket.close();
-      socketRef.current = null;
+      sensorSocket.close();
+      actuatorSocket.close();
+      sensorSocketRef.current = null;
+      actuatorSocketRef.current = null;
     };
   }, []);
 

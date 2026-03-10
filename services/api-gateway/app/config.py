@@ -12,6 +12,7 @@ class ApiGatewaySettings(BaseSettings):
     sensors_service_url: str = "http://iot-simulator:8080"
     actuators_service_url: str = "http://actuator-management-service:8005"
     rules_service_url: str = "http://rule-management-service:8004"
+    realtime_service_url: str = "http://realtime-service:8006"
 
     # Timeout for forwarding requests to backends (seconds)
     proxy_timeout_seconds: float = 30.0

@@ -14,6 +14,7 @@ function Actuators() {
   const [states, setStates] = useState(
     /** @type {Record<string, "ON" | "OFF">} */ ({})
   );
+  const [cachedStates, setCachedStates] = useState({});
   const [log, setLog] = useState([]);
   const [error, setError] = useState(null);
   const [pending, setPending] = useState({});
@@ -22,16 +23,19 @@ function Actuators() {
   // Use WebSocket for real-time actuator state updates
   const { status: wsStatus, actuatorStates, lastUpdated } = useWebSocketClient();
 
-  // Merge WebSocket states with local state
-  const mergedStates = { ...states, ...actuatorStates };
+  // Merge WebSocket states with local state and cached state (WebSocket takes precedence)
+  const mergedStates = { ...cachedStates, ...states, ...actuatorStates };
 
-  // Initial load only (WebSocket handles real-time updates)
+  // Load cached actuator data on component mount and tab visibility
   useEffect(() => {
     let cancelled = false;
 
     async function loadStates() {
       try {
+        console.log("Loading actuator states from /api/actuators...");
+        // Load initial states from actuator management service
         const data = await apiGet("/api/actuators");
+        console.log("Received actuator states:", data);
         if (cancelled || !data || !Array.isArray(data.actuators)) return;
         const nextStates = {};
         for (const item of data.actuators) {
@@ -43,6 +47,7 @@ function Actuators() {
           nextStates[item.id] = state;
         }
         if (!cancelled) {
+          console.log("Setting initial actuator states:", nextStates);
           setStates(nextStates);
         }
       } catch (err) {
@@ -50,14 +55,46 @@ function Actuators() {
         console.error("Failed to load actuator states", err);
         if (!cancelled) {
           setError(
-            "Failed to refresh actuator states from the simulator. Last known values are shown."
+            "Failed to refresh actuator states from simulator. Last known values are shown."
           );
         }
       }
+
+      // Load cached states from realtime service
+      try {
+        console.log("Loading cached actuators from /api/actuators/latest...");
+        const cacheData = await apiGet("/api/actuators/latest");
+        console.log("Received actuator cache data:", cacheData);
+        if (!cancelled && cacheData && cacheData.actuators) {
+          console.log("Setting cached actuator states:", cacheData.actuators);
+          setCachedStates(cacheData.actuators);
+        } else {
+          console.log("No actuator cache data available");
+        }
+      } catch (err) {
+        console.warn("Failed to load cached actuator data:", err);
+      }
     }
 
-    // Load initial states only
+    // Load initial states
     loadStates();
+
+    // Reload when page becomes visible (tab switch)
+    const handleVisibilityChange = () => {
+      console.log("Actuators visibility changed, hidden:", document.hidden);
+      if (!document.hidden) {
+        console.log("Actuators page became visible, reloading cache...");
+        loadStates();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    
+    return () => { 
+      cancelled = true; 
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   const sortedLog = useMemo(
@@ -70,9 +107,9 @@ function Actuators() {
     setInfo(null);
     setPending((prev) => ({ ...prev, [actuatorId]: true }));
     try {
-      await apiPost(`/api/actuators/${actuatorId}/${command.toLowerCase()}`);
-      // Optimistically update local state; the WebSocket will reconcile
-      // with the actual simulator state in real-time.
+      await apiPost(`/api/actuators/${actuatorId}`, { state: command });
+      // Optimistically update local state; WebSocket will reconcile
+      // with actual simulator state in real-time.
       setStates((prev) => ({ ...prev, [actuatorId]: command }));
       setLog((prev) => [
         ...prev,

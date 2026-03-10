@@ -1,5 +1,6 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useEffect, useState } from "react";
 import { useWebSocketClient } from "../services/websocket.js";
+import { apiGet } from "../services/api.js";
 import {
   Line,
   LineChart,
@@ -74,10 +75,54 @@ function formatTimestamp(ts) {
 function Dashboard() {
   const { sensors: wsSensors, history, lastUpdated: wsLastUpdated } =
     useWebSocketClient();
+  const [cachedSensors, setCachedSensors] = useState({});
   const lastUpdate = wsLastUpdated;
 
-  // Build a map of latest readings by sensor id from the WebSocket stream.
-  const latestById = useMemo(() => ({ ...wsSensors }), [wsSensors]);
+  // Load cached sensor data on component mount and tab visibility change
+  useEffect(() => {
+    let cancelled = false;
+    async function loadCachedSensors() {
+      try {
+        console.log("Loading cached sensors from /api/sensors/latest...");
+        const data = await apiGet("/api/sensors/latest");
+        console.log("Received cache data:", data);
+        if (!cancelled && data && data.sensors) {
+          console.log("Setting cached sensors:", data.sensors);
+          setCachedSensors(data.sensors);
+        } else {
+          console.log("No cache data available");
+        }
+      } catch (err) {
+        console.warn("Failed to load cached sensor data:", err);
+      }
+    }
+    loadCachedSensors();
+    
+    // Reload when page becomes visible (tab switch)
+    const handleVisibilityChange = () => {
+      console.log("Visibility changed, hidden:", document.hidden);
+      if (!document.hidden) {
+        console.log("Page became visible, reloading cache...");
+        loadCachedSensors();
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => { 
+      cancelled = true; 
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
+  // Merge WebSocket data with cached data (WebSocket takes precedence)
+  const latestById = useMemo(() => {
+    const merged = { ...cachedSensors };
+    Object.keys(wsSensors).forEach(sensorId => {
+      merged[sensorId] = wsSensors[sensorId];
+    });
+    return merged;
+  }, [cachedSensors, wsSensors]);
 
   const alerts = KNOWN_SENSORS.filter((meta) => {
     const evt = latestById[meta.id];
