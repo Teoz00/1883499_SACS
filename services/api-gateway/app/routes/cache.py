@@ -36,5 +36,10 @@ async def update_actuator_cache(data: dict) -> dict:
     
     actuator_id = data.get("actuator_id")
     if actuator_id:
-        latest_actuator_data[actuator_id] = data
+        # Store only the state, not the entire data object
+        latest_actuator_data[actuator_id] = {
+            "actuator_id": actuator_id,
+            "state": data.get("state", "OFF"),
+            "timestamp": data.get("timestamp")
+        }
     return {"status": "ok"}

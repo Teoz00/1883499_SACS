@@ -66,8 +66,14 @@ function Actuators() {
         const cacheData = await apiGet("/api/actuators/latest");
         console.log("Received actuator cache data:", cacheData);
         if (!cancelled && cacheData && cacheData.actuators) {
-          console.log("Setting cached actuator states:", cacheData.actuators);
-          setCachedStates(cacheData.actuators);
+          // Extract just the state values from cache objects
+          const extractedStates = {};
+          Object.keys(cacheData.actuators).forEach(actuatorId => {
+            const actuatorData = cacheData.actuators[actuatorId];
+            extractedStates[actuatorId] = actuatorData.state || "OFF";
+          });
+          console.log("Setting cached actuator states:", extractedStates);
+          setCachedStates(extractedStates);
         } else {
           console.log("No actuator cache data available");
         }
@@ -108,9 +114,11 @@ function Actuators() {
     setPending((prev) => ({ ...prev, [actuatorId]: true }));
     try {
       await apiPost(`/api/actuators/${actuatorId}`, { state: command });
-      // Optimistically update local state; WebSocket will reconcile
-      // with actual simulator state in real-time.
+      
+      // Update ALL state sources immediately for instant UI feedback
       setStates((prev) => ({ ...prev, [actuatorId]: command }));
+      setCachedStates((prev) => ({ ...prev, [actuatorId]: command }));
+      
       setLog((prev) => [
         ...prev,
         {
