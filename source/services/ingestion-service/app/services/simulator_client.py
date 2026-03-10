@@ -125,11 +125,11 @@ def _reading_to_events(sensor_id: str, reading: Dict[str, Any]) -> List[RawSenso
     return []
 
 
-async def fetch_sensor_data() -> List[RawSensorEvent]:
+async def fetch_sensor_data() -> List[dict]:
     """
-    Fetch sensor data from the external simulator.
-
-    Returns an empty list on error; errors are logged.
+    Fetch all sensor readings from the simulator.
+    Returns a list of raw dicts, each containing the full simulator 
+    payload plus a sensor_id field.
     """
     # simulator_base_url is an AnyHttpUrl; convert to str before normalization.
     raw_base = str(settings.simulator_base_url) if settings.simulator_base_url else ""
@@ -147,39 +147,21 @@ async def fetch_sensor_data() -> List[RawSensorEvent]:
 
     logger.info("Polling simulator for %d sensors", len(sensor_ids))
 
-    events: List[RawSensorEvent] = []
+    results = []
     async with httpx.AsyncClient(timeout=5.0) as client:
         for sensor_id in sensor_ids:
             sensor_url = f"{base_url}/api/sensors/{sensor_id}"
             try:
                 response = await client.get(sensor_url)
                 response.raise_for_status()
-            except httpx.HTTPError as exc:
-                logger.error(
-                    "Failed to poll sensor %s at %s: %s", sensor_id, sensor_url, exc
-                )
-                continue
-
-            try:
                 reading = response.json()
-            except ValueError as exc:
-                logger.error(
-                    "Simulator returned invalid JSON for sensor %s: %s",
-                    sensor_id,
-                    exc,
-                )
+                # Ensure sensor_id is always present in the payload
+                reading["sensor_id"] = sensor_id
+                results.append(reading)
+            except Exception as exc:
+                logger.error("Failed to poll sensor %s: %s", sensor_id, exc)
                 continue
-
-            for evt in _reading_to_events(sensor_id, reading):
-                try:
-                    # Validate via Pydantic to ensure we publish well-formed payloads.
-                    events.append(RawSensorEvent.parse_obj(evt.dict()))
-                except ValidationError as exc:
-                    logger.error(
-                        "Invalid sensor event for sensor %s: %s", sensor_id, exc
-                    )
-                    continue
-
-    logger.info("Fetched %d sensor events from simulator", len(events))
-    return events
+    
+    logger.info("Fetched %d sensor events from simulator", len(results))
+    return results
 

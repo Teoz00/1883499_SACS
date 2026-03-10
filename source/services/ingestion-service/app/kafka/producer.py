@@ -1,16 +1,13 @@
 import asyncio
 import json
 import logging
-from typing import Iterable, Mapping, Union
+from typing import Iterable, Mapping
 
 from aiokafka import AIOKafkaProducer
 
 from app.config import settings
-from app.services.simulator_client import RawSensorEvent
 
 logger = logging.getLogger(__name__)
-
-RawEventPayload = Union[RawSensorEvent, Mapping[str, object]]
 
 
 class RawEventsProducer:
@@ -60,12 +57,12 @@ class RawEventsProducer:
         finally:
             self._producer = None
 
-    async def publish_raw_event(self, event: RawEventPayload) -> None:
+    async def publish_raw_event(self, event: Mapping[str, object]) -> None:
         if self._producer is None:
             logger.error("Kafka producer not started; cannot publish event.")
             return
 
-        payload = event.dict() if isinstance(event, RawSensorEvent) else dict(event)
+        payload = dict(event)
 
         try:
             await self._producer.send_and_wait(
@@ -79,7 +76,7 @@ class RawEventsProducer:
         except Exception as exc:  # pragma: no cover - defensive
             logger.error("Error publishing raw event to Kafka: %s", exc)
 
-    async def publish_raw_events(self, events: Iterable[RawSensorEvent]) -> None:
+    async def publish_raw_events(self, events: Iterable[Mapping[str, object]]) -> None:
         for event in events:
             await self.publish_raw_event(event)
 

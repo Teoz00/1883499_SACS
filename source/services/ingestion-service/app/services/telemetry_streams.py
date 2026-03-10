@@ -7,7 +7,6 @@ import httpx
 
 from app.config import settings
 from app.kafka.producer import RawEventsProducer
-from app.services.simulator_client import RawSensorEvent
 
 logger = logging.getLogger(__name__)
 
@@ -23,86 +22,35 @@ TELEMETRY_TOPICS: List[str] = [
 ]
 
 
-def _power_payload_to_events(topic: str, payload: Dict[str, Any]) -> Iterable[RawSensorEvent]:
+def _power_payload_to_events(topic: str, payload: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
     simple_id = topic.split("/")[-1]
-    sensor_id = simple_id
-    event_time = payload.get("event_time")
-    power_kw = payload.get("power_kw")
-    if power_kw is None:
-        return []
-    return [
-        RawSensorEvent(
-            sensor_id=str(sensor_id),
-            type="power_kw",
-            value=float(power_kw),
-            timestamp=str(event_time),
-            status=str(payload.get("status") or "ok"),
-        )
-    ]
+    # Return full payload with correct sensor_id
+    payload["sensor_id"] = simple_id
+    return [payload]
 
 
-def _environment_payload_to_events(topic: str, payload: Dict[str, Any]) -> Iterable[RawSensorEvent]:
-    measurements = payload.get("measurements") or []
+def _environment_payload_to_events(topic: str, payload: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
     simple_id = topic.split("/")[-1]
-    event_time = payload.get("event_time")
-    status = str(payload.get("status") or "ok")
-
-    events: List[RawSensorEvent] = []
-    # For the purposes of the UI, we treat each telemetry topic as a single
-    # logical stream. Take the first measurement as the representative value.
-    for m in measurements:
-        metric = m.get("metric")
-        value = m.get("value")
-        if metric is None or value is None:
-            continue
-        events.append(
-            RawSensorEvent(
-                sensor_id=str(simple_id),
-                type=str(metric),
-                value=float(value),
-                timestamp=str(event_time),
-                status=status,
-            )
-        )
-        break
-    return events
+    # Return full payload with correct sensor_id
+    payload["sensor_id"] = simple_id
+    return [payload]
 
 
-def _thermal_payload_to_events(payload: Dict[str, Any]) -> Iterable[RawSensorEvent]:
+def _thermal_payload_to_events(payload: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
     loop_name = payload.get("loop") or "thermal_loop"
-    event_time = payload.get("event_time")
-    temp_c = payload.get("temperature_c")
-    if temp_c is None:
-        return []
-    return [
-        RawSensorEvent(
-            sensor_id=str(loop_name),
-            type="temperature_c",
-            value=float(temp_c),
-            timestamp=str(event_time),
-            status=str(payload.get("status") or "ok"),
-        )
-    ]
+    # Return full payload with correct sensor_id
+    payload["sensor_id"] = loop_name
+    return [payload]
 
 
-def _airlock_payload_to_events(payload: Dict[str, Any]) -> Iterable[RawSensorEvent]:
-    airlock_id = payload.get("airlock_id") or "airlock"
-    event_time = payload.get("event_time")
-    cycles_per_hour = payload.get("cycles_per_hour")
-    if cycles_per_hour is None:
-        return []
-    return [
-        RawSensorEvent(
-            sensor_id=str(airlock_id),
-            type="cycles_per_hour",
-            value=float(cycles_per_hour),
-            timestamp=str(event_time),
-            status=None,
-        )
-    ]
+def _airlock_payload_to_events(payload: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
+    airlock_id = payload.get("airlock_id") or "airlock-1"  # Match SCHEMA_FAMILY_MAP
+    # Return full payload with correct sensor_id
+    payload["sensor_id"] = airlock_id
+    return [payload]
 
 
-def telemetry_payload_to_events(topic: str, payload: Dict[str, Any]) -> Iterable[RawSensorEvent]:
+def telemetry_payload_to_events(topic: str, payload: Dict[str, Any]) -> Iterable[Dict[str, Any]]:
     if topic.endswith("thermal_loop"):
         return _thermal_payload_to_events(payload)
     if topic.endswith("airlock"):

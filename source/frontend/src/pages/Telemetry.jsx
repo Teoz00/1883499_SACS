@@ -314,10 +314,13 @@ function Telemetry() {
                       lineHeight: "1.4",
                       borderTop: "1px solid #e2e8f0",
                       paddingTop: "0.5rem",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "2px",
                     }}
                   >
                     {evt.metrics.slice(1).map((m, index) => (
-                      <div key={m.name || index} style={{ marginBottom: "0.1rem", display: "flex", justifyContent: "space-between" }}>
+                      <div key={m.name || index} style={{ display: "flex", justifyContent: "space-between" }}>
                         <span>{m.name}</span>
                         <span>{m.value.toFixed(2)} {m.unit}</span>
                       </div>

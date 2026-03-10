@@ -303,9 +303,17 @@ function Dashboard() {
                       fontSize: "0.7rem",
                       color: "#718096",
                       marginTop: "0.25rem",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "2px",
                     }}
                   >
-                    {evt.metrics.map(m => `${m.name}: ${m.value.toFixed(2)} ${m.unit}`).join(" | ")}
+                    {evt.metrics.map((m, index) => (
+                      <div key={m.name || index} style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span>{m.name}</span>
+                        <span>{m.value.toFixed(2)} {m.unit}</span>
+                      </div>
+                    ))}
                   </div>
                 )}
               </article>
