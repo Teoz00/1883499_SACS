@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import json
 
 from app.kafka.consumer import RawEventsConsumer
 from app.kafka.producer import NormalizedEventsProducer
@@ -28,14 +27,6 @@ async def run_event_processor(
                 break
 
             try:
-                # DEBUG: Log raw Kafka message structure
-                logger.debug("RAW KAFKA MESSAGE: %s", json.dumps(raw, default=str))
-                
-                # DEBUG: Check for thermal_loop topic
-                if isinstance(raw, dict) and raw.get("topic") == "mars/telemetry/thermal_loop":
-                    logger.info("THERMAL_LOOP DEBUG: sensor_id=%s, full_message=%s", 
-                               raw.get("sensor_id"), json.dumps(raw, default=str))
-                
                 unified = transform_raw_event(raw)
                 if unified is None:
                     # Skip events with unknown sensor_id

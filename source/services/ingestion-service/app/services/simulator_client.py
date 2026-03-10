@@ -10,14 +10,6 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 
-class RawSensorEvent(BaseModel):
-    sensor_id: str
-    type: str
-    value: float
-    timestamp: str
-    status: str | None = None
-
-
 async def _list_sensor_ids(base_url: str) -> List[str]:
     """
     Call /api/sensors and return the list of sensor identifiers.
@@ -49,79 +41,6 @@ async def _list_sensor_ids(base_url: str) -> List[str]:
             return [s for s in sensors if isinstance(s, str)]
 
     logger.error("Unsupported /api/sensors payload shape: %r", type(payload))
-    return []
-
-
-def _reading_to_events(sensor_id: str, reading: Dict[str, Any]) -> List[RawSensorEvent]:
-    """
-    Map a single sensor reading object into one or more RawSensorEvent
-    instances, based on the schema family.
-    """
-    events: List[RawSensorEvent] = []
-    captured_at = reading.get("captured_at") or datetime.now(timezone.utc).isoformat()
-
-    # rest.scalar.v1 : metric + value + unit + status
-    if "metric" in reading and "value" in reading:
-        events.append(
-            RawSensorEvent(
-                sensor_id=sensor_id,
-                type=str(reading.get("metric")),
-                value=float(reading.get("value")),
-                timestamp=captured_at,
-                status=str(reading.get("status") or "ok"),
-            )
-        )
-        return events
-
-    # rest.chemistry.v1 : measurements[] + status
-    if isinstance(reading.get("measurements"), list):
-        for m in reading["measurements"]:
-            if not isinstance(m, dict):
-                continue
-            if "metric" not in m or "value" not in m:
-                continue
-            events.append(
-                RawSensorEvent(
-                    sensor_id=sensor_id,
-                    type=str(m.get("metric")),
-                    value=float(m.get("value")),
-                    timestamp=captured_at,
-                        status=str(reading.get("status") or "ok"),
-                )
-            )
-        return events
-
-    # rest.particulate.v1 : pm* fields – use pm25 as primary metric
-    if "pm25_ug_m3" in reading:
-        events.append(
-            RawSensorEvent(
-                sensor_id=sensor_id,
-                type="pm25_ug_m3",
-                value=float(reading.get("pm25_ug_m3")),
-                timestamp=captured_at,
-                status=str(reading.get("status") or "ok"),
-            )
-        )
-        return events
-
-    # rest.level.v1 : level_pct + status
-    if "level_pct" in reading:
-        events.append(
-            RawSensorEvent(
-                sensor_id=sensor_id,
-                type="level_pct",
-                value=float(reading.get("level_pct")),
-                timestamp=captured_at,
-                status=str(reading.get("status") or "ok"),
-            )
-        )
-        return events
-
-    logger.error(
-        "Unsupported sensor reading schema for sensor_id=%s: keys=%s",
-        sensor_id,
-        list(reading.keys()),
-    )
     return []
 
 

@@ -62,64 +62,71 @@ def transform_raw_event(raw: Mapping[str, Any]) -> UnifiedEvent | None:
     status = raw.get("status")
     state_label = None
 
-    if schema_family == "rest.scalar.v1":
-        # Single metric sensors - metric, value, unit from payload
-        metrics = [Metric(name=raw["metric"], value=raw["value"], unit=raw["unit"])]
+    try:
+        if schema_family == "rest.scalar.v1":
+            # Single metric sensors - metric, value, unit from payload
+            metrics = [Metric(name=raw["metric"], value=raw["value"], unit=raw["unit"])]
 
-    elif schema_family == "rest.chemistry.v1":
-        # Multi-metric sensors - measurements array
-        metrics = [Metric(name=m["metric"], value=m["value"], unit=m["unit"])
-                   for m in raw["measurements"]]
+        elif schema_family == "rest.chemistry.v1":
+            # Multi-metric sensors - measurements array
+            metrics = [Metric(name=m["metric"], value=m["value"], unit=m["unit"])
+                       for m in raw["measurements"]]
 
-    elif schema_family == "rest.particulate.v1":
-        # Particulate sensors - pm1, pm25, pm10 fields
-        metrics = [
-            Metric(name="pm1",  value=raw["pm1_ug_m3"],  unit="ug/m3"),
-            Metric(name="pm25", value=raw["pm25_ug_m3"], unit="ug/m3"),
-            Metric(name="pm10", value=raw["pm10_ug_m3"], unit="ug/m3"),
-        ]
+        elif schema_family == "rest.particulate.v1":
+            # Particulate sensors - pm1, pm25, pm10 fields
+            metrics = [
+                Metric(name="pm1",  value=raw["pm1_ug_m3"],  unit="ug/m3"),
+                Metric(name="pm25", value=raw["pm25_ug_m3"], unit="ug/m3"),
+                Metric(name="pm10", value=raw["pm10_ug_m3"], unit="ug/m3"),
+            ]
 
-    elif schema_family == "rest.level.v1":
-        # Water tank level - level_pct and level_liters
-        metrics = [
-            Metric(name="level_pct",    value=raw["level_pct"],    unit="%"),
-            Metric(name="level_liters", value=raw["level_liters"], unit="L"),
-        ]
+        elif schema_family == "rest.level.v1":
+            # Water tank level - level_pct and level_liters
+            metrics = [
+                Metric(name="level_pct",    value=raw["level_pct"],    unit="%"),
+                Metric(name="level_liters", value=raw["level_liters"], unit="L"),
+            ]
 
-    elif schema_family == "topic.power.v1":
-        # Power sensors - power_kw, voltage_v, current_a, cumulative_kwh
-        metrics = [
-            Metric(name="power",      value=raw["power_kw"],       unit="kW"),
-            Metric(name="voltage",    value=raw["voltage_v"],      unit="V"),
-            Metric(name="current",    value=raw["current_a"],      unit="A"),
-            Metric(name="cumulative", value=raw["cumulative_kwh"], unit="kWh"),
-        ]
+        elif schema_family == "topic.power.v1":
+            # Power sensors - power_kw, voltage_v, current_a, cumulative_kwh
+            metrics = [
+                Metric(name="power",      value=raw["power_kw"],       unit="kW"),
+                Metric(name="voltage",    value=raw["voltage_v"],      unit="V"),
+                Metric(name="current",    value=raw["current_a"],      unit="A"),
+                Metric(name="cumulative", value=raw["cumulative_kwh"], unit="kWh"),
+            ]
 
-    elif schema_family == "topic.environment.v1":
-        # Environment sensors - measurements array with proper units
-        unit_map = {"radiation_uSv_h": "µSv/h", "oxygen_percent": "%"}
-        metrics = [
-            Metric(
-                name=m["metric"],
-                value=m["value"],
-                unit=m.get("unit") or unit_map.get(m["metric"], "")
-            )
-            for m in raw["measurements"]
-        ]
+        elif schema_family == "topic.environment.v1":
+            # Environment sensors - measurements array with proper units
+            unit_map = {"radiation_uSv_h": "µSv/h", "oxygen_percent": "%"}
+            metrics = [
+                Metric(
+                    name=m["metric"],
+                    value=m["value"],
+                    unit=m.get("unit") or unit_map.get(m["metric"], "")
+                )
+                for m in raw["measurements"]
+            ]
 
-    elif schema_family == "topic.thermal_loop.v1":
-        # Thermal loop - temperature_c and flow_l_min
-        metrics = [
-            Metric(name="temperature", value=raw["temperature_c"], unit="°C"),
-            Metric(name="flow",        value=raw["flow_l_min"],    unit="L/min"),
-        ]
+        elif schema_family == "topic.thermal_loop.v1":
+            # Thermal loop - temperature_c and flow_l_min
+            metrics = [
+                Metric(name="temperature", value=raw["temperature_c"], unit="°C"),
+                Metric(name="flow",        value=raw["flow_l_min"],    unit="L/min"),
+            ]
 
-    elif schema_family == "topic.airlock.v1":
-        # Airlock - cycles_per_hour and last_state
-        metrics = [
-            Metric(name="cycles_per_hour", value=raw["cycles_per_hour"], unit="cycles/h"),
-        ]
-        state_label = raw.get("last_state", "IDLE")
+        elif schema_family == "topic.airlock.v1":
+            # Airlock - cycles_per_hour and last_state
+            metrics = [
+                Metric(name="cycles_per_hour", value=raw["cycles_per_hour"], unit="cycles/h"),
+            ]
+            state_label = raw.get("last_state", "IDLE")
+
+    except KeyError as exc:
+        logger.error(
+            "Missing expected field %s in payload for sensor %s", exc, sensor_id
+        )
+        return None
 
     return UnifiedEvent(
         event_id=str(uuid4()),

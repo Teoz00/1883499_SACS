@@ -107,7 +107,7 @@ class RuleEngine:
         if operator == "<=":
             return value <= threshold
         if operator == "=":
-            return value == threshold
+            return abs(value - threshold) < 0.001
         if operator == ">":
             return value > threshold
         if operator == ">=":
@@ -136,6 +136,13 @@ class RuleEngine:
             event_value = None
             if event.metrics and len(event.metrics) > 0:
                 event_value = event.metrics[0].value
+
+            if event_value is None:
+                logger.warning(
+                    "Event from source_id=%s has empty metrics, skipping rule evaluation",
+                    event.source_id
+                )
+                continue
 
             if not self._compare(event_value, parsed.operator, parsed.threshold):
                 continue
